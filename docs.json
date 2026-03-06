@@ -75,7 +75,8 @@
               "api/auth/register",
               "api/auth/login",
               "api/auth/profile",
-              "api/auth/create-user"
+              "api/auth/create-user",
+              "api/auth/delete"
             ]
           },
           {

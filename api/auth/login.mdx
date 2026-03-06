@@ -36,7 +36,7 @@ No authentication required. This is a public endpoint.
 <ResponseField name="user" type="object">
   The authenticated user object without sensitive data
   
-  <ResponseField name="user.id" type="string">
+  <ResponseField name="user.id" type="integer">
     Unique user identifier
   </ResponseField>
   
@@ -66,7 +66,7 @@ No authentication required. This is a public endpoint.
 ```json
 {
   "user": {
-    "id": "1",
+    "id": 1,
     "name": "John Doe",
     "email": "john.doe@example.com",
     "role": "customer",

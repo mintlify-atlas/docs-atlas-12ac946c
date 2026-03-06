@@ -45,7 +45,7 @@ No authentication required. This is a public endpoint.
 <ResponseField name="user" type="object">
   The created user object without sensitive data
   
-  <ResponseField name="user.id" type="string">
+  <ResponseField name="user.id" type="integer">
     Unique user identifier
   </ResponseField>
   
@@ -72,7 +72,7 @@ No authentication required. This is a public endpoint.
 {
   "message": "Usuario registrado exitosamente",
   "user": {
-    "id": "1",
+    "id": 1,
     "name": "John Doe",
     "email": "john.doe@example.com",
     "role": "customer",
