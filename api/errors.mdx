@@ -1,0 +1,409 @@
+---
+title: 'Error Handling'
+description: 'Understanding API error responses and status codes'
+---
+
+## Error Response Format
+
+All errors follow a consistent JSON structure:
+
+```json
+{
+  "error": "Error message describing what went wrong"
+}
+```
+
+## Error Classes
+
+The API uses custom error classes that extend the base `AppError` class. Each error class corresponds to a specific HTTP status code.
+
+### Base Error Class
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:6-18
+export class AppError extends Error {
+  public readonly statusCode: number;
+  public readonly isOperational: boolean;
+
+  constructor(
+    message: string, 
+    statusCode: number = 500, 
+    isOperational: boolean = true
+  ) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = isOperational;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+```
+
+## HTTP Status Codes
+
+### 400 - Bad Request
+
+The request is malformed or contains invalid parameters.
+
+**Error Class:** `BadRequestError`
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:23-27
+export class BadRequestError extends AppError {
+  constructor(message: string = "Bad Request") {
+    super(message, 400);
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "error": "Invalid request format"
+}
+```
+
+### 401 - Unauthorized
+
+Authentication is required or the provided token is invalid.
+
+**Error Class:** `UnauthorizedError`
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:32-36
+export class UnauthorizedError extends AppError {
+  constructor(message: string = "Unauthorized") {
+    super(message, 401);
+  }
+}
+```
+
+**Common Scenarios:**
+- No authentication token provided
+- Token is expired or malformed
+- Invalid credentials during login
+
+**Example Response:**
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+**Solution:** Include a valid JWT token in the Authorization header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### 403 - Forbidden
+
+Authentication succeeded but the user lacks permission to access the resource.
+
+**Error Class:** `ForbiddenError`
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:41-45
+export class ForbiddenError extends AppError {
+  constructor(message: string = "Forbidden") {
+    super(message, 403);
+  }
+}
+```
+
+**Common Scenarios:**
+- Customer trying to access admin-only endpoints
+- User trying to modify another user's resources
+
+**Example Response:**
+
+```json
+{
+  "error": "Admin access required"
+}
+```
+
+### 404 - Not Found
+
+The requested resource does not exist.
+
+**Error Class:** `NotFoundError`
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:50-54
+export class NotFoundError extends AppError {
+  constructor(message: string = "Resource not found") {
+    super(message, 404);
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+### 409 - Conflict
+
+The request conflicts with the current state of the server.
+
+**Error Class:** `ConflictError`
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:59-63
+export class ConflictError extends AppError {
+  constructor(message: string = "Resource already exists") {
+    super(message, 409);
+  }
+}
+```
+
+**Common Scenarios:**
+- Email already registered during signup
+- Duplicate resource creation
+
+**Example Response:**
+
+```json
+{
+  "error": "Email already exists"
+}
+```
+
+### 422 - Unprocessable Entity
+
+The request is well-formed but contains semantic errors (validation failures).
+
+**Error Class:** `ValidationError`
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:68-72
+export class ValidationError extends AppError {
+  constructor(message: string = "Validation failed") {
+    super(message, 422);
+  }
+}
+```
+
+**Common Scenarios:**
+- Missing required fields
+- Invalid email format
+- Password too short
+- Invalid enum values
+
+**Example Response:**
+
+```json
+{
+  "error": "La contraseña debe tener al menos 6 caracteres"
+}
+```
+
+### 429 - Too Many Requests
+
+Rate limit exceeded for the endpoint.
+
+**Example Response:**
+
+```json
+{
+  "error": "Demasiados intentos. Intenta de nuevo en 15 minutos."
+}
+```
+
+**Rate Limited Endpoints:**
+- `POST /auth/register` - 10 requests per 15 minutes
+- `POST /auth/login` - 10 requests per 15 minutes
+
+Reference: `/workspace/source/backend/src/routes/auth.routes.ts:15-21`
+
+### 500 - Internal Server Error
+
+An unexpected error occurred on the server.
+
+**Error Class:** `InternalServerError`
+
+```typescript
+// From: /workspace/source/backend/src/utils/errors.ts:77-81
+export class InternalServerError extends AppError {
+  constructor(message: string = "Internal Server Error") {
+    super(message, 500);
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "error": "Error interno del servidor"
+}
+```
+
+**Note:** For security reasons, internal server errors do not expose implementation details to clients. Detailed error information is logged server-side.
+
+## Error Middleware
+
+The API uses centralized error handling middleware:
+
+```typescript
+// From: /workspace/source/backend/src/middleware/error.middleware.ts:4-13
+export function errorHandler(
+  err: unknown, 
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+) {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ error: err.message });
+    return;
+  }
+
+  // Unexpected errors: log but don't expose details to client
+  console.error(err);
+  res.status(500).json({ error: "Error interno del servidor" });
+}
+```
+
+## Validation Errors
+
+Validation is performed using [class-validator](https://github.com/typestack/class-validator). When validation fails, you receive detailed error messages.
+
+**Example Validation Error:**
+
+Request:
+```json
+{
+  "email": "invalid-email",
+  "password": "123"
+}
+```
+
+Response (422):
+```json
+{
+  "error": "Validation failed"
+}
+```
+
+**Common Validation Rules:**
+
+| Field | Validation | Error Message |
+|-------|------------|---------------|
+| email | Valid email format | "email must be a valid email" |
+| password | Minimum 6 characters | "La contraseña debe tener al menos 6 caracteres" |
+| role | Must be 'customer' or 'admin' | "El rol debe ser 'customer' o 'admin'" |
+| name | Required string | "name should not be empty" |
+
+## Error Handling Best Practices
+
+### Client-Side Error Handling
+
+Always check the HTTP status code and handle errors appropriately:
+
+```javascript
+try {
+  const response = await fetch('http://localhost:3000/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    // Handle error based on status code
+    if (response.status === 401) {
+      console.error('Invalid credentials:', data.error);
+    } else if (response.status === 422) {
+      console.error('Validation error:', data.error);
+    } else if (response.status === 429) {
+      console.error('Rate limited:', data.error);
+    } else {
+      console.error('Unexpected error:', data.error);
+    }
+    return;
+  }
+
+  // Success - use the token
+  const { token } = data;
+} catch (error) {
+  console.error('Network error:', error);
+}
+```
+
+### Retry Logic
+
+For rate-limited requests (429), implement exponential backoff:
+
+```javascript
+async function loginWithRetry(email, password, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch('http://localhost:3000/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    if (response.status !== 429) {
+      return response;
+    }
+
+    // Wait before retrying (exponential backoff)
+    const waitTime = Math.pow(2, i) * 1000;
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+
+  throw new Error('Max retries exceeded');
+}
+```
+
+### Token Expiration
+
+Handle token expiration gracefully:
+
+```javascript
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, options);
+
+  if (response.status === 401) {
+    // Token expired or invalid - redirect to login
+    window.location.href = '/login';
+    return;
+  }
+
+  return response;
+}
+```
+
+## Status Code Summary
+
+| Code | Class | Description |
+|------|-------|-------------|
+| 200 | Success | Request succeeded |
+| 201 | Success | Resource created successfully |
+| 400 | `BadRequestError` | Malformed request |
+| 401 | `UnauthorizedError` | Authentication required or failed |
+| 403 | `ForbiddenError` | Insufficient permissions |
+| 404 | `NotFoundError` | Resource not found |
+| 409 | `ConflictError` | Resource conflict (e.g., duplicate) |
+| 422 | `ValidationError` | Validation failed |
+| 429 | Rate Limit | Too many requests |
+| 500 | `InternalServerError` | Server error |
+
+## Debugging Tips
+
+1. **Check the status code first** - It tells you the category of error
+2. **Read the error message** - Provides specific details about what went wrong
+3. **Verify authentication** - Many errors stem from missing or invalid tokens
+4. **Validate input data** - Ensure your request body matches the expected schema
+5. **Check rate limits** - Wait and retry if you hit rate limits
+6. **Review documentation** - Ensure you're using the correct endpoint and method
+
+For more information, see:
+- [API Overview](/api/overview)
+- [Authentication](/api/authentication)

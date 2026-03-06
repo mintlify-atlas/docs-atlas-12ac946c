@@ -1,0 +1,129 @@
+---
+title: 'API Overview'
+description: 'Introduction to the E-commerce API architecture and common patterns'
+---
+
+## Base URL
+
+The API is accessible at:
+
+```
+http://localhost:3000
+```
+
+All API endpoints are relative to this base URL.
+
+## API Structure
+
+The E-commerce API is organized into the following main resource groups:
+
+- **`/auth`** - Authentication and user management
+- **`/products`** - Product catalog operations
+- **`/categories`** - Product category management
+- **`/cart`** - Shopping cart operations
+- **`/orders`** - Order processing and management
+
+## Common Patterns
+
+### Request Format
+
+All POST and PUT requests should send data as JSON with the `Content-Type: application/json` header:
+
+```json
+{
+  "name": "Product Name",
+  "price": 99.99
+}
+```
+
+### Response Format
+
+All API responses are returned in JSON format. Successful responses typically include:
+
+```json
+{
+  "message": "Operation completed successfully",
+  "data": {
+    // Response data
+  }
+}
+```
+
+### Authentication
+
+Protected endpoints require a JWT token in the `Authorization` header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+See the [Authentication](/api/authentication) section for details on obtaining and using tokens.
+
+### Rate Limiting
+
+Authentication endpoints (`/auth/register`, `/auth/login`) are rate-limited to prevent abuse:
+
+- **Window**: 15 minutes
+- **Max requests**: 10 per window
+- **Headers**: Rate limit info is returned in standard headers
+
+When rate limit is exceeded, you'll receive a 429 status code:
+
+```json
+{
+  "error": "Demasiados intentos. Intenta de nuevo en 15 minutos."
+}
+```
+
+### Security Headers
+
+The API uses [Helmet](https://helmetjs.github.io/) for security headers and implements:
+
+- Content Security Policy
+- XSS Protection
+- HSTS (HTTP Strict Transport Security)
+- Frame protection (X-Frame-Options)
+
+### CORS Configuration
+
+CORS is configured to accept requests from the frontend application:
+
+```typescript
+cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+})
+```
+
+### Request Size Limits
+
+- **JSON payloads**: Maximum 1MB
+- **File uploads**: Maximum 5MB per file
+
+### Pagination
+
+List endpoints support pagination through query parameters:
+
+```
+GET /products?page=1&limit=20
+```
+
+## Role-Based Access Control
+
+The API implements two user roles:
+
+- **`customer`** - Default role for registered users, can browse products and manage their own cart and orders
+- **`admin`** - Administrative role with full access to create, update, and delete resources
+
+Endpoints requiring specific roles will return a `403 Forbidden` error if accessed with insufficient permissions.
+
+## Data Validation
+
+All input data is validated using [class-validator](https://github.com/typestack/class-validator). Validation errors return a `422 Unprocessable Entity` status with details about the validation failures.
+
+## Next Steps
+
+- [Authentication](/api/authentication) - Learn how to authenticate and manage user sessions
+- [Error Handling](/api/errors) - Understand error responses and status codes

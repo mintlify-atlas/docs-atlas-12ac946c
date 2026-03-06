@@ -1,0 +1,99 @@
+---
+title: "Create Order"
+api: "POST /orders"
+description: "Create a new order from the user's cart"
+---
+
+Creates a new order by converting all items in the authenticated user's cart into an order. This endpoint:
+- Validates that the cart is not empty
+- Calculates the total price based on current product prices
+- Creates order items with the price at time of purchase
+- Reduces product stock atomically
+- Clears the cart after successful order creation
+
+## Authentication
+
+This endpoint requires authentication. Include a valid JWT token in the Authorization header.
+
+```
+Authorization: Bearer <your-token>
+```
+
+## Request
+
+No request body is required. The order is created from the user's current cart contents.
+
+## Response
+
+<ResponseField name="id" type="number" required>
+  Unique identifier for the order
+</ResponseField>
+
+<ResponseField name="userId" type="number" required>
+  ID of the user who placed the order
+</ResponseField>
+
+<ResponseField name="total" type="string" required>
+  Total amount for the order (decimal as string)
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current status of the order. Defaults to `pending`.
+  
+  Possible values:
+  - `pending` - Order has been created but not yet processed
+  - `shipped` - Order has been shipped
+  - `delivered` - Order has been delivered
+  - `cancelled` - Order has been cancelled
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the order was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  ISO 8601 timestamp when the order was last updated
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "id": 42,
+  "userId": 5,
+  "total": "149.97",
+  "status": "pending",
+  "createdAt": "2026-03-06T10:30:00.000Z",
+  "updatedAt": "2026-03-06T10:30:00.000Z"
+}
+```
+</ResponseExample>
+
+## Error Responses
+
+### 400 Bad Request
+
+Returned when:
+- The cart is empty
+- Insufficient stock for one or more products
+
+```json
+{
+  "error": "El carrito está vacío"
+}
+```
+
+```json
+{
+  "error": "Stock insuficiente para el producto \"Wireless Headphones\""
+}
+```
+
+### 401 Unauthorized
+
+Returned when the authentication token is missing or invalid.
+
+```json
+{
+  "error": "Usuario no autenticado"
+}
+```

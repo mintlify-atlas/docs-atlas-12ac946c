@@ -1,0 +1,472 @@
+---
+title: "Database Schema"
+description: "Complete documentation of the Prisma schema including all models, relationships, and indexes"
+---
+
+## Overview
+
+The E-commerce API uses **Prisma** as its ORM with **MySQL** as the database. The schema defines 7 models representing users, products, categories, carts, and orders.
+
+## Database Provider
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+```
+
+## Enums
+
+### Role
+
+Defines user roles for access control:
+
+```prisma
+enum Role {
+  customer
+  admin
+}
+```
+
+- **customer** - Regular users who can browse, purchase, and manage their cart
+- **admin** - Administrative users with full access to manage products, categories, and orders
+
+### OrderStatus
+
+Tracks the lifecycle of an order:
+
+```prisma
+enum OrderStatus {
+  pending
+  shipped
+  delivered
+  cancelled
+}
+```
+
+## Models
+
+### User
+
+Represents registered users (both customers and admins).
+
+```prisma
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(customer)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  cart         Cart?
+  orders       Order[]
+}
+```
+
+**Fields:**
+- `id` - Auto-incrementing primary key
+- `name` - User's full name
+- `email` - Unique email address (indexed for authentication)
+- `passwordHash` - Bcrypt-hashed password (never exposed in API responses)
+- `role` - User role (defaults to `customer`)
+- `createdAt` - Account creation timestamp
+- `updatedAt` - Last update timestamp (auto-updated)
+
+**Relations:**
+- `cart` - One-to-one relationship with Cart
+- `orders` - One-to-many relationship with Order
+
+<Info>
+  Passwords are hashed using bcrypt with 10 salt rounds before storage. The raw password is never stored in the database.
+</Info>
+
+### Category
+
+Organizes products into groups.
+
+```prisma
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+```
+
+**Fields:**
+- `id` - Auto-incrementing primary key
+- `name` - Category name (e.g., "Electronics", "Clothing")
+- `description` - Optional category description
+- `createdAt` - Creation timestamp
+- `updatedAt` - Last update timestamp
+
+**Relations:**
+- `products` - One-to-many relationship with Product
+
+### Product
+
+Represents items available for purchase.
+
+```prisma
+model Product {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  imageUrl    String
+  stock       Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  categoryId  Int?
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  category    Category?   @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId], map: "Product_categoryId_fkey")
+  @@index([name])
+}
+```
+
+**Fields:**
+- `id` - Auto-incrementing primary key
+- `name` - Product name (indexed for search)
+- `description` - Optional product description
+- `price` - Product price (Decimal with 10 digits, 2 decimal places)
+- `imageUrl` - URL to product image
+- `stock` - Available inventory quantity
+- `categoryId` - Foreign key to Category (nullable)
+
+**Relations:**
+- `category` - Many-to-one relationship with Category
+- `cartItems` - One-to-many relationship with CartItem
+- `orderItems` - One-to-many relationship with OrderItem
+
+**Indexes:**
+- `categoryId` - For efficient category filtering
+- `name` - For product search queries
+
+<Warning>
+  The `price` field uses MySQL's DECIMAL(10,2) type to prevent floating-point precision issues with monetary values.
+</Warning>
+
+### Cart
+
+Represents a user's shopping cart.
+
+```prisma
+model Cart {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+}
+```
+
+**Fields:**
+- `id` - Auto-incrementing primary key
+- `userId` - Unique foreign key to User (one cart per user)
+- `createdAt` - Cart creation timestamp
+- `updatedAt` - Last modification timestamp
+
+**Relations:**
+- `user` - One-to-one relationship with User
+- `items` - One-to-many relationship with CartItem
+
+<Note>
+  Each user can have only one cart (`userId` is unique). The cart persists across sessions.
+</Note>
+
+### CartItem
+
+Represents a product in a user's cart.
+
+```prisma
+model CartItem {
+  id        Int     @id @default(autoincrement())
+  cartId    Int
+  productId Int
+  quantity  Int
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@index([cartId], map: "CartItem_cartId_fkey")
+  @@index([productId], map: "CartItem_productId_fkey")
+}
+```
+
+**Fields:**
+- `id` - Auto-incrementing primary key
+- `cartId` - Foreign key to Cart
+- `productId` - Foreign key to Product
+- `quantity` - Number of units in cart
+
+**Relations:**
+- `cart` - Many-to-one relationship with Cart (cascading delete)
+- `product` - Many-to-one relationship with Product (cascading delete)
+
+**Constraints:**
+- `@@unique([cartId, productId])` - Prevents duplicate products in the same cart
+- `onDelete: Cascade` - Automatically deletes cart items when cart or product is deleted
+
+**Indexes:**
+- `cartId` - For efficient cart queries
+- `productId` - For product lookup
+
+### Order
+
+Represents a completed purchase.
+
+```prisma
+model Order {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  total     Decimal     @db.Decimal(10, 2)
+  createdAt DateTime    @default(now())
+  status    OrderStatus @default(pending)
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id])
+  items     OrderItem[]
+
+  @@index([userId], map: "Order_userId_fkey")
+  @@index([status])
+}
+```
+
+**Fields:**
+- `id` - Auto-incrementing primary key
+- `userId` - Foreign key to User
+- `total` - Total order amount (DECIMAL for precision)
+- `createdAt` - Order placement timestamp
+- `status` - Current order status (defaults to `pending`)
+- `updatedAt` - Last status update timestamp
+
+**Relations:**
+- `user` - Many-to-one relationship with User
+- `items` - One-to-many relationship with OrderItem
+
+**Indexes:**
+- `userId` - For user order history queries
+- `status` - For filtering orders by status
+
+### OrderItem
+
+Represents a product within an order.
+
+```prisma
+model OrderItem {
+  id              Int     @id @default(autoincrement())
+  orderId         Int
+  productId       Int
+  quantity        Int
+  priceAtPurchase Decimal @db.Decimal(10, 2)
+  order           Order   @relation(fields: [orderId], references: [id])
+  product         Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([productId], map: "OrderItem_productId_fkey")
+}
+```
+
+**Fields:**
+- `id` - Auto-incrementing primary key
+- `orderId` - Foreign key to Order
+- `productId` - Foreign key to Product
+- `quantity` - Number of units purchased
+- `priceAtPurchase` - Product price at time of order (immutable historical record)
+
+**Relations:**
+- `order` - Many-to-one relationship with Order
+- `product` - Many-to-one relationship with Product (restricted delete)
+
+**Constraints:**
+- `onDelete: Restrict` - Prevents product deletion if referenced in order history
+
+**Indexes:**
+- `orderId` - For order detail queries
+- `productId` - For product sales analytics
+
+<Info>
+  `priceAtPurchase` stores the product price at the time of order to maintain accurate historical records, even if the product price changes later.
+</Info>
+
+## Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    User ||--o{ Order : places
+    User ||--o| Cart : has
+    Cart ||--|{ CartItem : contains
+    Product ||--o{ CartItem : "added to"
+    Product ||--o{ OrderItem : "included in"
+    Category ||--|{ Product : categorizes
+    Order ||--|{ OrderItem : contains
+
+    User {
+        int id PK
+        string name
+        string email UK
+        string passwordHash
+        Role role
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Category {
+        int id PK
+        string name
+        string description
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Product {
+        int id PK
+        string name
+        string description
+        decimal price
+        string imageUrl
+        int stock
+        int categoryId FK
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Cart {
+        int id PK
+        int userId FK UK
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    CartItem {
+        int id PK
+        int cartId FK
+        int productId FK
+        int quantity
+    }
+
+    Order {
+        int id PK
+        int userId FK
+        decimal total
+        OrderStatus status
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    OrderItem {
+        int id PK
+        int orderId FK
+        int productId FK
+        int quantity
+        decimal priceAtPurchase
+    }
+```
+
+## Database Migrations
+
+Prisma manages database schema changes through migrations:
+
+```bash
+# Create a new migration
+npx prisma migrate dev --name migration_name
+
+# Apply migrations to production
+npx prisma migrate deploy
+
+# Generate Prisma Client
+npx prisma generate
+
+# Open Prisma Studio (database GUI)
+npx prisma studio
+```
+
+## Query Examples
+
+Here are common Prisma queries used in the repositories:
+
+### Find user with cart and items
+
+```typescript
+const user = await prisma.user.findUnique({
+  where: { id: userId },
+  include: {
+    cart: {
+      include: {
+        items: {
+          include: { product: true }
+        }
+      }
+    }
+  }
+});
+```
+
+### Create order with items
+
+```typescript
+const order = await prisma.order.create({
+  data: {
+    userId,
+    total,
+    status: 'pending',
+    items: {
+      create: cartItems.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        priceAtPurchase: item.product.price
+      }))
+    }
+  },
+  include: { items: { include: { product: true } } }
+});
+```
+
+### Filter products by category
+
+```typescript
+const products = await prisma.product.findMany({
+  where: { categoryId },
+  include: { category: true },
+  orderBy: { createdAt: 'desc' }
+});
+```
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Indexes" icon="gauge-high">
+    Strategic indexes on `Product.name`, `Product.categoryId`, `Order.status`, and `Order.userId` optimize common queries.
+  </Card>
+  <Card title="Cascade Deletes" icon="trash">
+    CartItems cascade delete when carts or products are removed, maintaining referential integrity.
+  </Card>
+  <Card title="Decimal Precision" icon="dollar-sign">
+    DECIMAL(10,2) ensures accurate monetary calculations without floating-point errors.
+  </Card>
+  <Card title="Unique Constraints" icon="key">
+    Unique constraints on `User.email` and `Cart.userId` enforce business rules at the database level.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Learn about the system architecture
+  </Card>
+  <Card title="Repositories" icon="database" href="/api/overview">
+    See how repositories interact with Prisma
+  </Card>
+</CardGroup>

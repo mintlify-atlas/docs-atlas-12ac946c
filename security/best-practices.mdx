@@ -1,0 +1,331 @@
+---
+title: 'Security Best Practices'
+description: 'Essential security measures and recommendations for the E-commerce API'
+---
+
+## Overview
+
+The E-commerce API implements multiple layers of security to protect user data and prevent common vulnerabilities. This guide covers the security measures in place and best practices for working with the API.
+
+## Authentication & Authorization
+
+### JWT Token Authentication
+
+The API uses JSON Web Tokens (JWT) for stateless authentication.
+
+#### Token Generation
+
+From `backend/src/utils/jwt.ts:15-19`:
+
+```typescript
+export const generateToken = (payload: JwtUserPayload) => {
+  const options: jwt.SignOptions = {};
+  options.expiresIn = config.jwtExpiry as string & jwt.SignOptions["expiresIn"];
+  return jwt.sign(payload, config.jwtSecret, options);
+};
+```
+
+<Warning>
+Tokens expire after **1 hour** by default (configurable via `JWT_EXPIRY` environment variable). Always handle token expiration gracefully in your client applications.
+</Warning>
+
+#### Token Verification
+
+The API validates JWT tokens with type-safe payload checking:
+
+```typescript
+export const verifyToken = (token: string): JwtUserPayload => {
+  const decoded = jwt.verify(token, config.jwtSecret);
+
+  if (typeof decoded === "string") {
+    throw new Error("Invalid token payload");
+  }
+
+  if (!isJwtUserPayload(decoded)) {
+    throw new Error("Token payload does not match expected structure");
+  }
+
+  return decoded;
+};
+```
+
+### Protected Routes
+
+Protect routes using the authentication middleware:
+
+From `backend/src/middleware/auth.middleware.ts:7-22`:
+
+```typescript
+export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const payload = verifyToken(token);
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+}
+```
+
+<Tip>
+Always send the JWT token in the `Authorization` header using the Bearer scheme:
+```
+Authorization: Bearer <your-token>
+```
+</Tip>
+
+### Role-Based Access Control (RBAC)
+
+The API implements role-based authorization to restrict access to admin-only operations:
+
+```typescript
+export function roleMiddleware(...allowedRoles: Role[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized - No user found" });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        error: `Forbidden - Requires one of the following roles: ${allowedRoles.join(', ')}`
+      });
+    }
+
+    next();
+  };
+}
+
+// Pre-configured middleware
+export const adminOnly = roleMiddleware("admin");
+```
+
+Example usage:
+
+```typescript
+router.post("/create-user", authMiddleware, adminOnly, validateDto(CreateUserWithRoleDto), controller.createUserWithRole);
+```
+
+## Password Security
+
+### Password Hashing with bcrypt
+
+All passwords are hashed using bcrypt with a cost factor of 10.
+
+From `backend/src/services/auth.services.ts:15-23`:
+
+```typescript
+async register(data: CreateUserDto) {
+  const existing = await this.userRepo.findByEmail(data.email);
+  if (existing) throw new ConflictError("Email already in use");
+
+  const hashed = await bcrypt.hash(data.password, 10);
+  const user = await this.userRepo.createUser({
+    name: data.name,
+    email: data.email,
+    passwordHash: hashed,
+    role: "customer"
+  });
+
+  return user;
+}
+```
+
+### Password Verification
+
+```typescript
+const valid = await bcrypt.compare(data.password, user.passwordHash);
+if (!valid) {
+  throw new UnauthorizedError("Invalid email or password");
+}
+```
+
+<Warning>
+The API uses generic error messages ("Invalid email or password") to prevent user enumeration attacks. Never reveal whether an email exists in the system.
+</Warning>
+
+### Password Never Exposed
+
+Password hashes are always excluded from API responses:
+
+```typescript
+const { passwordHash, ...userWithoutPassword } = user;
+return { user: userWithoutPassword, token };
+```
+
+## HTTP Security Headers
+
+The API uses Helmet middleware to set secure HTTP headers.
+
+From `backend/src/app.ts:17`:
+
+```typescript
+app.use(helmet());
+```
+
+Helmet sets the following security headers:
+
+- `Content-Security-Policy` - Prevents XSS attacks
+- `X-DNS-Prefetch-Control` - Controls DNS prefetching
+- `X-Frame-Options` - Prevents clickjacking (set to DENY)
+- `X-Content-Type-Options` - Prevents MIME sniffing (set to nosniff)
+- `Strict-Transport-Security` - Enforces HTTPS
+- `X-Download-Options` - Prevents file download exploits
+- `X-Permitted-Cross-Domain-Policies` - Restricts Adobe products
+
+<Tip>
+Always use HTTPS in production to ensure these security headers provide maximum protection.
+</Tip>
+
+## CORS Configuration
+
+Cross-Origin Resource Sharing (CORS) is configured to only allow requests from trusted origins.
+
+From `backend/src/app.ts:20-25`:
+
+```typescript
+app.use(cors({
+  origin: config.frontendUrl,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+```
+
+**Configuration:**
+- **Origin**: Restricted to `FRONTEND_URL` environment variable
+- **Credentials**: Enabled for cookie-based authentication
+- **Methods**: Only standard REST methods allowed
+- **Headers**: Limited to `Content-Type` and `Authorization`
+
+<Warning>
+Never set CORS origin to `*` in production. Always specify the exact domain(s) that should have access to your API.
+</Warning>
+
+## Input Validation
+
+All incoming requests are validated using class-validator DTOs to prevent injection attacks and malformed data.
+
+### Validation Middleware
+
+From `backend/src/middleware/validation.middleware.ts:8-28`:
+
+```typescript
+export function validateDto<T extends object>(dtoClass: ClassConstructor<T>) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const dtoObject = plainToInstance(dtoClass, req.body, { enableImplicitConversion: true });
+
+    const errors = await validate(dtoObject as object, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+
+    if (errors.length > 0) {
+      const messages = errors.map(err => Object.values(err.constraints || {})).flat();
+      return res.status(400).json({ errors: messages });
+    }
+
+    req.body = dtoObject;
+    next();
+  };
+}
+```
+
+**Key Features:**
+- `whitelist: true` - Strips properties not defined in the DTO
+- `forbidNonWhitelisted: true` - Rejects requests with extra properties
+- Prevents mass assignment vulnerabilities
+
+<Tip>
+Always define DTOs with explicit validation rules using decorators like `@IsEmail()`, `@MinLength()`, `@IsString()`, etc.
+</Tip>
+
+## Request Size Limits
+
+### JSON Payload Limit
+
+JSON request bodies are limited to prevent denial-of-service attacks:
+
+```typescript
+app.use(express.json({ limit: '1mb' }));
+```
+
+### File Upload Limits
+
+File uploads are restricted to prevent abuse:
+
+```typescript
+app.use(fileUpload({
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB maximum
+  },
+  abortOnLimit: true,
+  safeFileNames: true,
+  preserveExtension: true,
+  createParentPath: true
+}));
+```
+
+<Warning>
+Files larger than 5MB will be rejected automatically. Ensure your client applications handle this limit appropriately.
+</Warning>
+
+## Environment Variables
+
+Sensitive configuration is managed through environment variables.
+
+From `backend/src/config/index.ts:13-19`:
+
+```typescript
+export const config = {
+  jwtSecret: getRequiredEnv("JWT_SECRET"),
+  jwtExpiry: process.env.JWT_EXPIRY || "1h",
+  dbUrl: getRequiredEnv("DATABASE_URL"),
+  nodeEnv: process.env.NODE_ENV || "development",
+  frontendUrl: process.env.FRONTEND_URL || "http://localhost:3001"
+};
+```
+
+### Required Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `JWT_SECRET` | Secret key for signing JWT tokens | `your-secret-key-min-32-chars` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/db` |
+| `JWT_EXPIRY` | Token expiration time (optional) | `1h`, `24h`, `7d` |
+| `FRONTEND_URL` | Allowed CORS origin (optional) | `https://example.com` |
+| `NODE_ENV` | Environment mode (optional) | `development`, `production` |
+
+<Warning>
+**Critical**: Use a strong, randomly generated `JWT_SECRET` with at least 32 characters. Never commit this value to version control.
+</Warning>
+
+## Security Checklist
+
+Before deploying to production, ensure:
+
+- [ ] `JWT_SECRET` is a strong, random value (32+ characters)
+- [ ] `FRONTEND_URL` is set to your production domain
+- [ ] HTTPS is enabled on your server
+- [ ] Database credentials are secured and rotated regularly
+- [ ] Rate limiting is enabled on all public endpoints
+- [ ] Error messages don't leak sensitive information
+- [ ] All dependencies are up to date (run `npm audit`)
+- [ ] CORS is configured with specific origins (not `*`)
+- [ ] File upload sizes are appropriately limited
+- [ ] Input validation is applied to all endpoints
+- [ ] Passwords are never logged or exposed in responses
+
+## Reporting Security Issues
+
+<Warning>
+If you discover a security vulnerability, please report it privately to the security team. Do not open a public GitHub issue.
+</Warning>
+
+Contact: security@example.com

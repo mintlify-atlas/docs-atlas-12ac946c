@@ -1,80 +1,733 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get started with the E-Commerce API in minutes'
 ---
 
-## Get started in three steps
+# Quickstart Guide
 
-Get your documentation site running locally and make your first customization.
+This guide walks you through making your first API calls to the E-Commerce API. You'll learn how to register a user, authenticate, browse products, manage a shopping cart, and create orders.
 
-### Step 1: Set up your local environment
+## Base URL
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+All API requests should be made to:
 
-### Step 2: Deploy your changes
+```
+http://localhost:3000
+```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+## Authentication
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+Most endpoints require authentication using a JWT token. After logging in, include the token in the `Authorization` header:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
 
-### Step 3: Go live
+---
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+<Steps>
 
-## Next steps
+<Step title="Register a New User">
 
-Now that you have your docs running, explore these key features:
+Create a new customer account by sending a POST request to `/auth/register`.
 
-<CardGroup cols={2}>
+<CodeGroup>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+```bash cURL
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "password": "securepassword123"
+  }'
+```
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/auth/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    name: 'John Doe',
+    email: 'john@example.com',
+    password: 'securepassword123'
+  })
+});
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+const data = await response.json();
+console.log(data);
+```
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+```python Python
+import requests
 
-</CardGroup>
+response = requests.post(
+    'http://localhost:3000/auth/register',
+    json={
+        'name': 'John Doe',
+        'email': 'john@example.com',
+        'password': 'securepassword123'
+    }
+)
+
+print(response.json())
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "message": "Usuario registrado exitosamente",
+  "user": {
+    "id": "1",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "customer",
+    "createdAt": "2026-03-06T10:30:00.000Z"
+  }
+}
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+Passwords must be at least 6 characters long. The password is hashed and never returned in API responses.
 </Note>
+
+</Step>
+
+<Step title="Login to Get Access Token">
+
+Authenticate with your credentials to receive a JWT token for subsequent requests.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@example.com",
+    "password": "securepassword123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'john@example.com',
+    password: 'securepassword123'
+  })
+});
+
+const data = await response.json();
+const token = data.token;
+console.log('Token:', token);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:3000/auth/login',
+    json={
+        'email': 'john@example.com',
+        'password': 'securepassword123'
+    }
+)
+
+data = response.json()
+token = data['token']
+print('Token:', token)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "1",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "customer"
+  }
+}
+```
+
+<Warning>
+Store the JWT token securely. You'll need it for all authenticated requests. The token should be included in the `Authorization` header as `Bearer YOUR_TOKEN`.
+</Warning>
+
+</Step>
+
+<Step title="Browse Available Products">
+
+Retrieve the list of available products. This endpoint is public and doesn't require authentication.
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:3000/products
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/products');
+const products = await response.json();
+console.log(products);
+```
+
+```python Python
+import requests
+
+response = requests.get('http://localhost:3000/products')
+products = response.json()
+print(products)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Wireless Headphones",
+    "description": "Premium noise-cancelling headphones with 30-hour battery life",
+    "price": 199.99,
+    "stock": 50,
+    "imageUrl": "http://localhost:3000/uploads/headphones.jpg",
+    "categoryId": 1,
+    "createdAt": "2026-03-01T10:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "name": "Smart Watch",
+    "description": "Fitness tracking smartwatch with heart rate monitor",
+    "price": 299.99,
+    "stock": 30,
+    "imageUrl": "http://localhost:3000/uploads/smartwatch.jpg",
+    "categoryId": 1,
+    "createdAt": "2026-03-02T14:30:00.000Z"
+  }
+]
+```
+
+You can also fetch a specific product by ID:
+
+```bash
+curl http://localhost:3000/products/1
+```
+
+</Step>
+
+<Step title="Add Products to Cart">
+
+Add items to your shopping cart. This endpoint requires authentication.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:3000/cart/add \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "productId": 1,
+    "quantity": 2
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/cart/add', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    productId: 1,
+    quantity: 2
+  })
+});
+
+const cartItem = await response.json();
+console.log(cartItem);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:3000/cart/add',
+    headers={'Authorization': f'Bearer {token}'},
+    json={
+        'productId': 1,
+        'quantity': 2
+    }
+)
+
+cart_item = response.json()
+print(cart_item)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "userId": 1,
+  "productId": 1,
+  "quantity": 2,
+  "createdAt": "2026-03-06T11:00:00.000Z"
+}
+```
+
+<Note>
+The quantity must be at least 1. If you add the same product again, the quantities will be combined.
+</Note>
+
+</Step>
+
+<Step title="View Your Cart">
+
+Retrieve all items in your shopping cart with product details and calculated totals.
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:3000/cart \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/cart', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const cart = await response.json();
+console.log(cart);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'http://localhost:3000/cart',
+    headers={'Authorization': f'Bearer {token}'}
+)
+
+cart = response.json()
+print(cart)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "productId": 1,
+      "quantity": 2,
+      "product": {
+        "id": 1,
+        "name": "Wireless Headphones",
+        "price": 199.99,
+        "imageUrl": "http://localhost:3000/uploads/headphones.jpg"
+      },
+      "subtotal": 399.98
+    }
+  ],
+  "total": 399.98
+}
+```
+
+**Update cart item quantity:**
+
+```bash
+curl -X PUT http://localhost:3000/cart/item/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{"quantity": 3}'
+```
+
+**Remove item from cart:**
+
+```bash
+curl -X DELETE http://localhost:3000/cart/item/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+</Step>
+
+<Step title="Create an Order">
+
+Convert your cart items into an order. This will clear your cart and create a permanent order record.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:3000/orders \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/orders', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const order = await response.json();
+console.log('Order created:', order);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:3000/orders',
+    headers={'Authorization': f'Bearer {token}'}
+)
+
+order = response.json()
+print('Order created:', order)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "userId": 1,
+  "total": 399.98,
+  "status": "pending",
+  "createdAt": "2026-03-06T11:15:00.000Z",
+  "items": [
+    {
+      "id": 1,
+      "orderId": 1,
+      "productId": 1,
+      "quantity": 2,
+      "price": 199.99,
+      "product": {
+        "id": 1,
+        "name": "Wireless Headphones",
+        "imageUrl": "http://localhost:3000/uploads/headphones.jpg"
+      }
+    }
+  ]
+}
+```
+
+<Warning>
+Creating an order will clear your cart. Make sure your cart contains all desired items before creating an order.
+</Warning>
+
+</Step>
+
+<Step title="View Order History">
+
+Retrieve all your past orders or fetch a specific order by ID.
+
+<CodeGroup>
+
+```bash cURL
+# Get all orders
+curl http://localhost:3000/orders \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get specific order
+curl http://localhost:3000/orders/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+// Get all orders
+const response = await fetch('http://localhost:3000/orders', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const orders = await response.json();
+console.log('Order history:', orders);
+
+// Get specific order
+const orderResponse = await fetch('http://localhost:3000/orders/1', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const order = await orderResponse.json();
+console.log('Order details:', order);
+```
+
+```python Python
+import requests
+
+# Get all orders
+response = requests.get(
+    'http://localhost:3000/orders',
+    headers={'Authorization': f'Bearer {token}'}
+)
+
+orders = response.json()
+print('Order history:', orders)
+
+# Get specific order
+order_response = requests.get(
+    'http://localhost:3000/orders/1',
+    headers={'Authorization': f'Bearer {token}'}
+)
+
+order = order_response.json()
+print('Order details:', order)
+```
+
+</CodeGroup>
+
+**Response (all orders):**
+
+```json
+[
+  {
+    "id": 1,
+    "userId": 1,
+    "total": 399.98,
+    "status": "pending",
+    "createdAt": "2026-03-06T11:15:00.000Z",
+    "items": [
+      {
+        "id": 1,
+        "orderId": 1,
+        "productId": 1,
+        "quantity": 2,
+        "price": 199.99
+      }
+    ]
+  }
+]
+```
+
+</Step>
+
+</Steps>
+
+---
+
+## Admin Operations
+
+Admin users have additional privileges to manage products and categories. To perform admin operations, you must first create an admin user.
+
+### Create Admin User
+
+Only existing admins can create new users with specific roles:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:3000/auth/create-user \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -d '{
+    "name": "Admin User",
+    "email": "admin@example.com",
+    "password": "securepassword123",
+    "role": "admin"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:3000/auth/create-user', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${adminToken}`
+  },
+  body: JSON.stringify({
+    name: 'Admin User',
+    email: 'admin@example.com',
+    password: 'securepassword123',
+    role: 'admin'
+  })
+});
+
+const admin = await response.json();
+console.log(admin);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:3000/auth/create-user',
+    headers={'Authorization': f'Bearer {admin_token}'},
+    json={
+        'name': 'Admin User',
+        'email': 'admin@example.com',
+        'password': 'securepassword123',
+        'role': 'admin'
+    }
+)
+
+admin = response.json()
+print(admin)
+```
+
+</CodeGroup>
+
+### Create a Product
+
+Admin users can create new products with image uploads using multipart/form-data:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:3000/products \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -F "name=Wireless Mouse" \
+  -F "description=Ergonomic wireless mouse with precision tracking" \
+  -F "price=49.99" \
+  -F "stock=100" \
+  -F "categoryId=1" \
+  -F "image=@/path/to/mouse.jpg"
+```
+
+```javascript JavaScript
+const formData = new FormData();
+formData.append('name', 'Wireless Mouse');
+formData.append('description', 'Ergonomic wireless mouse with precision tracking');
+formData.append('price', '49.99');
+formData.append('stock', '100');
+formData.append('categoryId', '1');
+formData.append('image', fileInput.files[0]); // From file input element
+
+const response = await fetch('http://localhost:3000/products', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${adminToken}`
+  },
+  body: formData
+});
+
+const product = await response.json();
+console.log('Product created:', product);
+```
+
+```python Python
+import requests
+
+files = {'image': open('/path/to/mouse.jpg', 'rb')}
+data = {
+    'name': 'Wireless Mouse',
+    'description': 'Ergonomic wireless mouse with precision tracking',
+    'price': 49.99,
+    'stock': 100,
+    'categoryId': 1
+}
+
+response = requests.post(
+    'http://localhost:3000/products',
+    headers={'Authorization': f'Bearer {admin_token}'},
+    files=files,
+    data=data
+)
+
+product = response.json()
+print('Product created:', product)
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "id": 3,
+  "name": "Wireless Mouse",
+  "description": "Ergonomic wireless mouse with precision tracking",
+  "price": 49.99,
+  "stock": 100,
+  "imageUrl": "http://localhost:3000/uploads/wireless-mouse-1234567890.jpg",
+  "categoryId": 1,
+  "createdAt": "2026-03-06T12:00:00.000Z"
+}
+```
+
+<Note>
+Product images are required and must be less than 5MB. Supported formats include JPEG, PNG, and WebP.
+</Note>
+
+### Update a Product
+
+```bash
+curl -X PUT http://localhost:3000/products/3 \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -F "price=44.99" \
+  -F "stock=150"
+```
+
+### Delete a Product
+
+```bash
+curl -X DELETE http://localhost:3000/products/3 \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN"
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore all available endpoints and their detailed documentation
+  </Card>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn more about JWT authentication and security best practices
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/errors">
+    Understand error codes and how to handle API errors
+  </Card>
+  <Card title="Rate Limiting" icon="gauge-high" href="/security/rate-limiting">
+    Learn about API rate limits and best practices
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized Error">
+    This error occurs when your JWT token is missing, invalid, or expired. Make sure you're including the token in the `Authorization` header as `Bearer YOUR_TOKEN`. You may need to login again to get a fresh token.
+  </Accordion>
+  
+  <Accordion title="Rate Limit Exceeded">
+    Authentication endpoints (`/auth/register` and `/auth/login`) are rate limited to 10 requests per 15 minutes. If you exceed this limit, wait 15 minutes before trying again.
+  </Accordion>
+  
+  <Accordion title="Product Image Upload Fails">
+    Ensure your image is less than 5MB and in a supported format (JPEG, PNG, WebP). The image field must be named `image` in the multipart form data.
+  </Accordion>
+  
+  <Accordion title="Cannot Create Order from Empty Cart">
+    You must have at least one item in your cart before creating an order. Add products to your cart using `/cart/add` first.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,104 @@
+---
+title: "Add to Cart"
+api: "POST /cart/add"
+description: "Add a product to the authenticated user's shopping cart"
+---
+
+## Authentication
+
+This endpoint requires authentication. Include a valid JWT token in the Authorization header.
+
+```bash
+Authorization: Bearer <token>
+```
+
+## Request Body
+
+<ParamField body="productId" type="integer" required>
+  The ID of the product to add to the cart
+</ParamField>
+
+<ParamField body="quantity" type="integer" required>
+  The quantity of the product to add. Must be at least 1.
+</ParamField>
+
+<RequestExample>
+```json
+{
+  "productId": 42,
+  "quantity": 2
+}
+```
+</RequestExample>
+
+## Response
+
+Returns the created or updated cart item.
+
+<ResponseField name="id" type="integer" required>
+  Unique identifier for the cart item
+</ResponseField>
+
+<ResponseField name="cartId" type="integer" required>
+  ID of the cart this item belongs to
+</ResponseField>
+
+<ResponseField name="productId" type="integer" required>
+  ID of the product that was added
+</ResponseField>
+
+<ResponseField name="quantity" type="integer" required>
+  Total quantity of the product in the cart
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "id": 10,
+  "cartId": 1,
+  "productId": 42,
+  "quantity": 2
+}
+```
+</ResponseExample>
+
+## Behavior
+
+- If the product is already in the cart, the quantity will be **incremented** by the specified amount
+- If the cart doesn't exist yet, it will be created automatically
+- The operation uses an atomic upsert to prevent race conditions
+
+## Error Responses
+
+### Product Not Found (404)
+```json
+{
+  "message": "Producto no encontrado"
+}
+```
+
+### Insufficient Stock (400)
+```json
+{
+  "message": "Stock insuficiente"
+}
+```
+
+### Validation Error (400)
+```json
+{
+  "errors": [
+    {
+      "field": "quantity",
+      "message": "La cantidad debe ser al menos 1"
+    }
+  ]
+}
+```
+
+### Unauthorized (401)
+```json
+{
+  "message": "Usuario no autenticado"
+}
+```

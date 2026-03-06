@@ -1,0 +1,181 @@
+---
+title: 'Create Product'
+api: 'POST /products'
+description: 'Create a new product (admin only)'
+---
+
+## Overview
+
+This endpoint allows administrators to create a new product in the catalog. It requires admin authentication and a product image upload.
+
+## Endpoint
+
+```
+POST /products
+```
+
+## Authentication
+
+**Required:** Admin role
+
+This endpoint requires a valid JWT token with admin privileges. Include the token in the Authorization header:
+
+```
+Authorization: Bearer <your_token>
+```
+
+## Request Body
+
+This endpoint accepts `multipart/form-data` format due to the required image upload.
+
+<ParamField body="name" type="string" required>
+  Product name
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Product description
+</ParamField>
+
+<ParamField body="price" type="number" required>
+  Product price (maximum 2 decimal places)
+</ParamField>
+
+<ParamField body="stock" type="integer" required>
+  Available stock quantity (minimum: 0)
+</ParamField>
+
+<ParamField body="categoryId" type="integer" optional>
+  ID of the category this product belongs to (must be >= 1 if provided)
+</ParamField>
+
+<ParamField body="image" type="file" required>
+  Product image file (uploaded as multipart/form-data with field name 'image')
+</ParamField>
+
+## Validation Rules
+
+- `name`: Must be a valid string
+- `description`: Must be a valid string
+- `price`: Must be a number with maximum 2 decimal places
+- `stock`: Must be an integer with minimum value of 0
+- `categoryId`: If provided, must be an integer >= 1
+- `image`: Required file field - the endpoint will return a 400 error if missing
+
+## Response
+
+Returns the created product object.
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the newly created product
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Product name
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Product description
+</ResponseField>
+
+<ResponseField name="price" type="decimal">
+  Product price (decimal with 2 decimal places)
+</ResponseField>
+
+<ResponseField name="imageUrl" type="string">
+  URL to the uploaded product image
+</ResponseField>
+
+<ResponseField name="stock" type="integer">
+  Available stock quantity
+</ResponseField>
+
+<ResponseField name="categoryId" type="integer" optional>
+  ID of the category this product belongs to
+</ResponseField>
+
+<ResponseField name="createdAt" type="datetime">
+  Timestamp when the product was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="datetime">
+  Timestamp when the product was last updated
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.example.com/products \
+  -H "Authorization: Bearer <your_admin_token>" \
+  -F "name=Laptop" \
+  -F "description=High-performance laptop for professionals" \
+  -F "price=1299.99" \
+  -F "stock=15" \
+  -F "categoryId=2" \
+  -F "image=@/path/to/laptop.jpg"
+```
+
+## Example Response
+
+```json
+{
+  "id": 1,
+  "name": "Laptop",
+  "description": "High-performance laptop for professionals",
+  "price": "1299.99",
+  "imageUrl": "https://example.com/uploads/laptop-1234567890.jpg",
+  "stock": 15,
+  "categoryId": 2,
+  "createdAt": "2026-03-06T10:30:00.000Z",
+  "updatedAt": "2026-03-06T10:30:00.000Z"
+}
+```
+
+Status Code: `201 Created`
+
+## Error Responses
+
+### Missing Image
+
+```json
+{
+  "error": "La imagen del producto es obligatoria (campo 'image')"
+}
+```
+
+Status Code: `400 Bad Request`
+
+### Validation Error
+
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {
+      "field": "price",
+      "message": "El precio debe ser un número válido con máximo 2 decimales"
+    }
+  ]
+}
+```
+
+Status Code: `400 Bad Request`
+
+### Unauthorized
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+Status Code: `401 Unauthorized`
+
+### Forbidden (Non-Admin User)
+
+```json
+{
+  "error": "Admin access required"
+}
+```
+
+Status Code: `403 Forbidden`

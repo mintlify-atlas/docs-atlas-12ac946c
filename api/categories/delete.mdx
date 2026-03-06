@@ -1,0 +1,70 @@
+---
+title: "Delete Category"
+api: "DELETE /categories/:id"
+description: "Delete a category by ID"
+---
+
+This endpoint deletes an existing category by ID. Requires authentication and admin role.
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for authentication. Must have admin role.
+</ParamField>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the category to delete
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X DELETE https://api.example.com/categories/1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+</RequestExample>
+
+## Response
+
+Returns a 204 No Content status code on successful deletion with no response body.
+
+<ResponseExample>
+
+```text 204
+No Content
+```
+
+</ResponseExample>
+
+## Error Responses
+
+<ResponseExample>
+
+```json 401
+{
+  "message": "Unauthorized"
+}
+```
+
+```json 403
+{
+  "message": "Forbidden: Admin access required"
+}
+```
+
+```json 404
+{
+  "message": "Category not found"
+}
+```
+
+</ResponseExample>
+
+## Notes
+
+- Deleting a category may fail if there are products associated with it, depending on your database constraints
+- This operation is irreversible
+- Consider using a soft delete approach in production environments

@@ -1,0 +1,533 @@
+---
+title: 'Database Migrations'
+description: 'Manage database schema changes using Prisma Migrate'
+icon: 'database'
+---
+
+## Overview
+
+The E-commerce API uses [Prisma](https://www.prisma.io/) as its ORM and migration tool. This guide covers the complete workflow for managing database schema changes.
+
+## Prisma Schema
+
+The database schema is defined in `backend/prisma/schema.prisma:1-109`:
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  customer
+  admin
+}
+
+enum OrderStatus {
+  pending
+  shipped
+  delivered
+  cancelled
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(customer)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  cart         Cart?
+  orders       Order[]
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  imageUrl    String
+  stock       Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  categoryId  Int?
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  category    Category?   @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId])
+  @@index([name])
+}
+
+model Cart {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+}
+
+model CartItem {
+  id        Int     @id @default(autoincrement())
+  cartId    Int
+  productId Int
+  quantity  Int
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@index([productId])
+}
+
+model Order {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  total     Decimal     @db.Decimal(10, 2)
+  createdAt DateTime    @default(now())
+  status    OrderStatus @default(pending)
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id])
+  items     OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id              Int     @id @default(autoincrement())
+  orderId         Int
+  productId       Int
+  quantity        Int
+  priceAtPurchase Decimal @db.Decimal(10, 2)
+  order           Order   @relation(fields: [orderId], references: [id])
+  product         Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+}
+```
+
+## Key Schema Features
+
+### Enums
+
+- **Role**: `customer` (default) | `admin`
+- **OrderStatus**: `pending` (default) | `shipped` | `delivered` | `cancelled`
+
+### Relationships
+
+- **User** has one `Cart` and many `Orders`
+- **Category** has many `Products`
+- **Product** belongs to one `Category` (optional)
+- **Cart** has many `CartItems`
+- **Order** has many `OrderItems`
+
+### Indexes
+
+Optimized queries with indexes on:
+- `Product.categoryId` and `Product.name`
+- `Order.userId` and `Order.status`
+- `CartItem.cartId` and `CartItem.productId`
+- `OrderItem.orderId` and `OrderItem.productId`
+
+## Development Workflow
+
+<Steps>
+  <Step title="Modify the schema">
+    Edit `backend/prisma/schema.prisma` with your changes:
+    
+    ```prisma
+    model Product {
+      // Add a new field
+      featured Boolean @default(false)
+      // ... rest of model
+    }
+    ```
+  </Step>
+  
+  <Step title="Create migration">
+    Generate a migration file:
+    
+    ```bash
+    npm run prisma:migrate
+    # Or directly:
+    npx prisma migrate dev --name add_featured_field
+    ```
+    
+    This command:
+    - Creates SQL migration file in `prisma/migrations/`
+    - Applies the migration to your database
+    - Regenerates Prisma Client
+  </Step>
+  
+  <Step title="Review migration SQL">
+    Check the generated SQL in `prisma/migrations/[timestamp]_add_featured_field/migration.sql`:
+    
+    ```sql
+    ALTER TABLE `Product` ADD COLUMN `featured` BOOLEAN NOT NULL DEFAULT false;
+    ```
+  </Step>
+  
+  <Step title="Test the changes">
+    Verify the migration worked:
+    
+    ```bash
+    npx prisma studio
+    ```
+    
+    Or test in code:
+    
+    ```typescript
+    const product = await prisma.product.create({
+      data: {
+        name: "Test Product",
+        featured: true,  // New field
+        // ... other fields
+      }
+    });
+    ```
+  </Step>
+</Steps>
+
+## Available Scripts
+
+From `backend/package.json:6-13`:
+
+```json
+{
+  "scripts": {
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "prisma:seed": "tsx prisma/seed.ts"
+  }
+}
+```
+
+### prisma:migrate
+
+```bash
+npm run prisma:migrate
+```
+
+**Development only**: Creates and applies migrations. Use `--name` flag to describe the change:
+
+```bash
+npx prisma migrate dev --name add_product_ratings
+```
+
+### prisma:generate
+
+```bash
+npm run prisma:generate
+```
+
+Regenerates Prisma Client without creating migrations. Use after pulling schema changes.
+
+### prisma:seed
+
+```bash
+npm run prisma:seed
+```
+
+Populates the database with initial data using `prisma/seed.ts`.
+
+## Production Deployment
+
+<Warning>
+Never use `prisma migrate dev` in production. It can result in data loss.
+</Warning>
+
+### Deploy Migrations
+
+Use `migrate deploy` to apply pending migrations:
+
+```bash
+npx prisma migrate deploy
+```
+
+This command:
+- Applies all pending migrations
+- Does NOT create new migrations
+- Does NOT prompt for user input
+- Safe for CI/CD pipelines
+
+### Deployment Steps
+
+<Steps>
+  <Step title="Commit migrations">
+    Ensure all migration files are committed to version control:
+    
+    ```bash
+    git add prisma/migrations
+    git commit -m "Add product featured field migration"
+    ```
+  </Step>
+  
+  <Step title="Deploy application">
+    Build and deploy your Docker container or code
+  </Step>
+  
+  <Step title="Apply migrations">
+    Run migrations before starting the application:
+    
+    ```bash
+    # In Docker:
+    docker-compose exec backend npx prisma migrate deploy
+    
+    # Or in Dockerfile CMD:
+    CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+    ```
+  </Step>
+</Steps>
+
+## Migration Commands Reference
+
+### Create migration (development)
+
+```bash
+npx prisma migrate dev --name description_of_change
+```
+
+### Apply migrations (production)
+
+```bash
+npx prisma migrate deploy
+```
+
+### Check migration status
+
+```bash
+npx prisma migrate status
+```
+
+### Reset database (development only)
+
+```bash
+npx prisma migrate reset
+```
+
+<Warning>
+`migrate reset` drops the database, recreates it, and applies all migrations. All data will be lost.
+</Warning>
+
+### Resolve migration issues
+
+```bash
+npx prisma migrate resolve --applied "migration_name"
+npx prisma migrate resolve --rolled-back "migration_name"
+```
+
+## Database Seeding
+
+The seed script is configured in `package.json:15-17`:
+
+```json
+{
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
+```
+
+Run seeding:
+
+```bash
+# Standalone
+npm run prisma:seed
+
+# After reset (automatic)
+npx prisma migrate reset
+```
+
+## Prisma Client Generation
+
+The Prisma Client is generated from the schema and must be regenerated when:
+- Schema changes
+- After pulling changes from Git
+- During Docker builds
+
+### Development
+
+```bash
+npm run prisma:generate
+```
+
+### Docker Build
+
+Included in the Dockerfile (`backend/dockerfile:13`):
+
+```dockerfile
+RUN npx prisma generate
+```
+
+The generated client is copied to the final image (`backend/dockerfile:26`):
+
+```dockerfile
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+```
+
+## Common Workflows
+
+### Adding a new field
+
+<Steps>
+  <Step title="Update schema">
+    ```prisma
+    model Product {
+      slug String @unique
+      // ... rest of model
+    }
+    ```
+  </Step>
+  
+  <Step title="Create migration">
+    ```bash
+    npx prisma migrate dev --name add_product_slug
+    ```
+  </Step>
+  
+  <Step title="Update application code">
+    ```typescript
+    const product = await prisma.product.create({
+      data: {
+        slug: "product-slug",
+        // ... other fields
+      }
+    });
+    ```
+  </Step>
+</Steps>
+
+### Adding a new model
+
+<Steps>
+  <Step title="Define model in schema">
+    ```prisma
+    model Review {
+      id        Int      @id @default(autoincrement())
+      productId Int
+      userId    Int
+      rating    Int
+      comment   String?
+      createdAt DateTime @default(now())
+      product   Product  @relation(fields: [productId], references: [id])
+      user      User     @relation(fields: [userId], references: [id])
+      
+      @@index([productId])
+      @@index([userId])
+    }
+    ```
+  </Step>
+  
+  <Step title="Add relations to existing models">
+    ```prisma
+    model Product {
+      reviews Review[]
+      // ... rest of model
+    }
+    
+    model User {
+      reviews Review[]
+      // ... rest of model
+    }
+    ```
+  </Step>
+  
+  <Step title="Create migration">
+    ```bash
+    npx prisma migrate dev --name add_reviews
+    ```
+  </Step>
+</Steps>
+
+### Renaming a field (with data preservation)
+
+<Warning>
+Simply renaming in schema drops and recreates the column, losing data.
+</Warning>
+
+<Steps>
+  <Step title="Create empty migration">
+    ```bash
+    npx prisma migrate dev --create-only --name rename_field
+    ```
+  </Step>
+  
+  <Step title="Edit migration SQL">
+    Replace the generated SQL with:
+    
+    ```sql
+    ALTER TABLE `Product` RENAME COLUMN `oldName` TO `newName`;
+    ```
+  </Step>
+  
+  <Step title="Apply migration">
+    ```bash
+    npx prisma migrate dev
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Migration out of sync
+
+**Symptom**: "Your database schema is not in sync with your migration history"
+
+**Solution**:
+
+```bash
+# Development: Reset database
+npx prisma migrate reset
+
+# Production: Mark migration as applied
+npx prisma migrate resolve --applied "migration_name"
+```
+
+### Prisma Client not found
+
+**Symptom**: `Cannot find module '@prisma/client'`
+
+**Solution**:
+
+```bash
+npm run prisma:generate
+```
+
+### Database connection errors
+
+**Symptom**: `P1001: Can't reach database server`
+
+**Solution**: Verify `DATABASE_URL` in `.env`:
+
+```bash
+DATABASE_URL="mysql://user:password@host:3306/database"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="gear" href="/guides/environment-setup">
+    Configure DATABASE_URL and other variables
+  </Card>
+  
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Run migrations in Docker containers
+  </Card>
+</CardGroup>

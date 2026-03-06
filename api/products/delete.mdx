@@ -1,0 +1,99 @@
+---
+title: 'Delete Product'
+api: 'DELETE /products/:id'
+description: 'Delete a product from the catalog (admin only)'
+---
+
+## Overview
+
+This endpoint allows administrators to permanently delete a product from the catalog. This action cannot be undone.
+
+## Endpoint
+
+```
+DELETE /products/:id
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the product to delete
+</ParamField>
+
+## Authentication
+
+**Required:** Admin role
+
+This endpoint requires a valid JWT token with admin privileges. Include the token in the Authorization header:
+
+```
+Authorization: Bearer <your_token>
+```
+
+## Response
+
+Returns no content on successful deletion.
+
+Status Code: `204 No Content`
+
+## Example Request
+
+```bash
+curl -X DELETE https://api.example.com/products/1 \
+  -H "Authorization: Bearer <your_admin_token>"
+```
+
+## Example Response
+
+No response body. HTTP status code `204 No Content` indicates successful deletion.
+
+## Error Responses
+
+### Product Not Found
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+Status Code: `404 Not Found`
+
+### Unauthorized
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+Status Code: `401 Unauthorized`
+
+### Forbidden (Non-Admin User)
+
+```json
+{
+  "error": "Admin access required"
+}
+```
+
+Status Code: `403 Forbidden`
+
+### Conflict (Product in Orders)
+
+If the product has associated order items, deletion may be restricted based on the database constraints:
+
+```json
+{
+  "error": "Cannot delete product with existing orders"
+}
+```
+
+Status Code: `409 Conflict`
+
+## Important Notes
+
+- This action is permanent and cannot be undone
+- Due to the Prisma schema's `onDelete: Restrict` constraint on OrderItem relations, products that are referenced in existing orders cannot be deleted
+- CartItem relations use `onDelete: Cascade`, so deleting a product will automatically remove it from all carts
+- Only administrators can perform this action

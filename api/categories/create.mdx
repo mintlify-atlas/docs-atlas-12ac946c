@@ -1,0 +1,87 @@
+---
+title: "Create Category"
+api: "POST /categories"
+description: "Create a new product category"
+---
+
+This endpoint creates a new category. Requires authentication and admin role.
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for authentication. Must have admin role.
+</ParamField>
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  Name of the category to create
+</ParamField>
+
+<RequestExample>
+
+```json
+{
+  "name": "Electronics"
+}
+```
+
+</RequestExample>
+
+## Response
+
+<ResponseExample>
+
+```json 201
+{
+  "id": "1",
+  "name": "Electronics",
+  "createdAt": "2024-01-15T10:30:00Z"
+}
+```
+
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the newly created category
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Name of the category
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp of when the category was created
+</ResponseField>
+
+## Error Responses
+
+<ResponseExample>
+
+```json 401
+{
+  "message": "Unauthorized"
+}
+```
+
+```json 403
+{
+  "message": "Forbidden: Admin access required"
+}
+```
+
+```json 400
+{
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "name",
+      "message": "name must be a string"
+    }
+  ]
+}
+```
+
+</ResponseExample>

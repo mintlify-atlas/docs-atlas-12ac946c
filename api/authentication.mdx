@@ -1,0 +1,303 @@
+---
+title: 'Authentication'
+description: 'JWT-based authentication system with token management'
+---
+
+## Overview
+
+The E-commerce API uses JWT (JSON Web Tokens) for authentication. After successful login, you receive a token that must be included in subsequent requests to protected endpoints.
+
+## Authentication Flow
+
+1. Register a new user or login with existing credentials
+2. Receive a JWT token in the response
+3. Include the token in the `Authorization` header for protected requests
+4. Token expires after the configured duration (default: 1 hour)
+
+## Authentication Endpoints
+
+### Register New User
+
+Create a new customer account.
+
+```http
+POST /auth/register
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Validation Rules:**
+- `name`: Required string
+- `email`: Valid email format
+- `password`: Minimum 6 characters
+
+**Response (201 Created):**
+
+```json
+{
+  "message": "Usuario registrado exitosamente",
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "customer",
+    "createdAt": "2026-03-06T10:30:00Z"
+  }
+}
+```
+
+### Login
+
+Authenticate and receive a JWT token.
+
+```http
+POST /auth/login
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "email": "john@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "customer"
+  }
+}
+```
+
+### Create User with Role (Admin Only)
+
+Administrators can create users with specific roles.
+
+```http
+POST /auth/create-user
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "Admin User",
+  "email": "admin@example.com",
+  "password": "securePassword123",
+  "role": "admin"
+}
+```
+
+**Valid Roles:**
+- `customer`
+- `admin`
+
+**Response (201 Created):**
+
+```json
+{
+  "message": "Usuario creado exitosamente",
+  "user": {
+    "id": 2,
+    "name": "Admin User",
+    "email": "admin@example.com",
+    "role": "admin",
+    "createdAt": "2026-03-06T10:35:00Z"
+  }
+}
+```
+
+### Update Profile
+
+Update authenticated user's profile information.
+
+```http
+PUT /auth/profile
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "John Smith",
+  "email": "johnsmith@example.com"
+}
+```
+
+Both fields are optional. Include only the fields you want to update.
+
+**Response (200 OK):**
+
+```json
+{
+  "id": 1,
+  "name": "John Smith",
+  "email": "johnsmith@example.com",
+  "role": "customer",
+  "createdAt": "2026-03-06T10:30:00Z"
+}
+```
+
+### Delete Account
+
+Delete the authenticated user's account.
+
+```http
+DELETE /auth/delete
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "message": "Usuario eliminado exitosamente",
+  "user": {
+    "id": 1,
+    "email": "john@example.com"
+  }
+}
+```
+
+## Using JWT Tokens
+
+### Token Structure
+
+JWT tokens contain the following payload:
+
+```typescript
+{
+  id: number,        // User ID
+  email: string,     // User email
+  role: "customer" | "admin",  // User role
+  iat: number,       // Issued at timestamp
+  exp: number        // Expiration timestamp
+}
+```
+
+Reference: `/workspace/source/backend/src/utils/jwt.ts:8-12`
+
+### Including Tokens in Requests
+
+Add the token to the `Authorization` header using the Bearer scheme:
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  http://localhost:3000/auth/profile
+```
+
+**JavaScript Example:**
+
+```javascript
+fetch('http://localhost:3000/auth/profile', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+})
+```
+
+**Python Example:**
+
+```python
+import requests
+
+headers = {
+    'Authorization': f'Bearer {token}',
+    'Content-Type': 'application/json'
+}
+
+response = requests.get('http://localhost:3000/auth/profile', headers=headers)
+```
+
+### Token Expiration
+
+Tokens expire after a configured duration (default: 1 hour). The expiration time is controlled by the `JWT_EXPIRY` environment variable.
+
+When a token expires, you'll receive a `401 Unauthorized` response:
+
+```json
+{
+  "error": "Invalid token"
+}
+```
+
+You must login again to obtain a new token.
+
+## Authentication Middleware
+
+The authentication middleware validates tokens and extracts user information:
+
+```typescript
+// From: /workspace/source/backend/src/middleware/auth.middleware.ts:7-22
+export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const payload = verifyToken(token);
+    req.user = payload; // User info available in request
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+}
+```
+
+## Security Best Practices
+
+### Token Storage
+
+- **Never** store tokens in localStorage (vulnerable to XSS)
+- Use httpOnly cookies for web applications
+- Store in secure storage on mobile apps
+
+### Token Transmission
+
+- Always use HTTPS in production
+- Never send tokens in URL parameters
+- Use the Authorization header
+
+### Token Security
+
+- Keep `JWT_SECRET` environment variable secure and complex
+- Rotate secrets periodically
+- Use appropriate expiration times (shorter is more secure)
+
+## Common Authentication Errors
+
+| Status | Error | Cause |
+|--------|-------|-------|
+| 401 | "Unauthorized" | No token provided |
+| 401 | "Invalid token" | Token is malformed, expired, or invalid |
+| 403 | "Forbidden" | Valid token but insufficient permissions |
+| 409 | "Resource already exists" | Email already registered |
+| 422 | Validation error | Invalid input data format |
+
+See [Error Handling](/api/errors) for complete error documentation.

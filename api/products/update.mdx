@@ -1,0 +1,211 @@
+---
+title: 'Update Product'
+api: 'PUT /products/:id'
+description: 'Update an existing product (admin only)'
+---
+
+## Overview
+
+This endpoint allows administrators to update an existing product in the catalog. All fields are optional, and you can optionally upload a new image.
+
+## Endpoint
+
+```
+PUT /products/:id
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the product to update
+</ParamField>
+
+## Authentication
+
+**Required:** Admin role
+
+This endpoint requires a valid JWT token with admin privileges. Include the token in the Authorization header:
+
+```
+Authorization: Bearer <your_token>
+```
+
+## Request Body
+
+This endpoint accepts `multipart/form-data` format if uploading a new image, or `application/json` for other updates.
+
+<ParamField body="name" type="string" optional>
+  Product name
+</ParamField>
+
+<ParamField body="description" type="string" optional>
+  Product description
+</ParamField>
+
+<ParamField body="price" type="number" optional>
+  Product price (maximum 2 decimal places)
+</ParamField>
+
+<ParamField body="imageUrl" type="string" optional>
+  Product image URL (can be set directly)
+</ParamField>
+
+<ParamField body="categoryId" type="integer" optional>
+  ID of the category this product belongs to (must be >= 1 if provided)
+</ParamField>
+
+<ParamField body="image" type="file" optional>
+  New product image file (uploaded as multipart/form-data with field name 'image')
+</ParamField>
+
+## Validation Rules
+
+- `name`: If provided, must be a valid string
+- `description`: If provided, must be a valid string
+- `price`: If provided, must be a number with maximum 2 decimal places
+- `categoryId`: If provided, must be an integer >= 1
+- `image`: Optional file field - if provided, will replace the existing image
+
+## Response
+
+Returns the updated product object.
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the product
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Product name
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Product description
+</ResponseField>
+
+<ResponseField name="price" type="decimal">
+  Product price (decimal with 2 decimal places)
+</ResponseField>
+
+<ResponseField name="imageUrl" type="string">
+  URL to the product image
+</ResponseField>
+
+<ResponseField name="stock" type="integer">
+  Available stock quantity
+</ResponseField>
+
+<ResponseField name="categoryId" type="integer" optional>
+  ID of the category this product belongs to
+</ResponseField>
+
+<ResponseField name="createdAt" type="datetime">
+  Timestamp when the product was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="datetime">
+  Timestamp when the product was last updated
+</ResponseField>
+
+## Example Request (JSON)
+
+```bash
+curl -X PUT https://api.example.com/products/1 \
+  -H "Authorization: Bearer <your_admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Premium Laptop",
+    "price": 1499.99
+  }'
+```
+
+## Example Request (With Image Upload)
+
+```bash
+curl -X PUT https://api.example.com/products/1 \
+  -H "Authorization: Bearer <your_admin_token>" \
+  -F "name=Premium Laptop" \
+  -F "price=1499.99" \
+  -F "image=@/path/to/new-laptop.jpg"
+```
+
+## Example Response
+
+```json
+{
+  "id": 1,
+  "name": "Premium Laptop",
+  "description": "High-performance laptop for professionals",
+  "price": "1499.99",
+  "imageUrl": "https://example.com/uploads/laptop-updated-1234567890.jpg",
+  "stock": 15,
+  "categoryId": 2,
+  "createdAt": "2026-01-15T10:30:00.000Z",
+  "updatedAt": "2026-03-06T14:25:00.000Z"
+}
+```
+
+Status Code: `200 OK`
+
+## Error Responses
+
+### Product Not Found
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+Status Code: `404 Not Found`
+
+### Validation Error
+
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {
+      "field": "price",
+      "message": "El precio debe ser un número válido con máximo 2 decimales"
+    }
+  ]
+}
+```
+
+Status Code: `400 Bad Request`
+
+### Unauthorized
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+Status Code: `401 Unauthorized`
+
+### Forbidden (Non-Admin User)
+
+```json
+{
+  "error": "Admin access required"
+}
+```
+
+Status Code: `403 Forbidden`
+
+### Invalid Category ID
+
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {
+      "field": "categoryId",
+      "message": "Debe proporcionar un ID de categoría válido"
+    }
+  ]
+}
+```
+
+Status Code: `400 Bad Request`

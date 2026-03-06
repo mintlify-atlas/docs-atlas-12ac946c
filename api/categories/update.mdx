@@ -1,0 +1,108 @@
+---
+title: "Update Category"
+api: "PUT /categories/:id"
+description: "Update an existing category"
+---
+
+This endpoint updates an existing category by ID. Requires authentication and admin role.
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for authentication. Must have admin role.
+</ParamField>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the category to update
+</ParamField>
+
+## Request Body
+
+<ParamField body="name" type="string">
+  New name for the category (optional)
+</ParamField>
+
+<RequestExample>
+
+```bash cURL
+curl -X PUT https://api.example.com/categories/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Consumer Electronics"
+  }'
+```
+
+```json Body
+{
+  "name": "Consumer Electronics"
+}
+```
+
+</RequestExample>
+
+## Response
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "1",
+  "name": "Consumer Electronics",
+  "createdAt": "2024-01-15T10:30:00Z"
+}
+```
+
+</ResponseExample>
+
+### Response Fields
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the category
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Updated name of the category
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp of when the category was originally created
+</ResponseField>
+
+## Error Responses
+
+<ResponseExample>
+
+```json 401
+{
+  "message": "Unauthorized"
+}
+```
+
+```json 403
+{
+  "message": "Forbidden: Admin access required"
+}
+```
+
+```json 404
+{
+  "message": "Category not found"
+}
+```
+
+```json 400
+{
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "name",
+      "message": "name must be a string"
+    }
+  ]
+}
+```
+
+</ResponseExample>

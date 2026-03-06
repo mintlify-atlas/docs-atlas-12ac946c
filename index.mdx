@@ -1,97 +1,78 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "E-commerce API Documentation"
+description: "A RESTful e-commerce API built with Express, Prisma, and TypeScript"
 ---
 
-## Setting up
+## Welcome to E-commerce API
 
-Get your documentation site up and running in minutes.
+Build powerful e-commerce applications with our modern, secure REST API. Features complete authentication, product management, shopping cart functionality, and order processing.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started in minutes with your first API request
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available endpoints and parameters
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Authentication" icon="key" href="/concepts/authentication">
+    Learn about JWT-based authentication and security
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Deploy with Docker and docker-compose
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Key Features
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="JWT Authentication" icon="shield-halved">
+    Secure JWT-based authentication with role-based access control (customer/admin)
+  </Card>
+  <Card title="Product Management" icon="box">
+    Complete product catalog with categories, image uploads via Cloudinary, and inventory tracking
+  </Card>
+  <Card title="Shopping Cart" icon="cart-shopping">
+    Persistent shopping cart functionality with add, update, remove, and clear operations
+  </Card>
+  <Card title="Order Processing" icon="receipt">
+    Full order creation and management system with order history and status tracking
+  </Card>
+  <Card title="Rate Limiting" icon="gauge">
+    Built-in rate limiting to protect against abuse and ensure API stability
+  </Card>
+  <Card title="Type Safety" icon="shield-check">
+    Built with TypeScript and Prisma ORM for end-to-end type safety
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Technology Stack
 
-## Need inspiration?
+Built with modern, battle-tested technologies:
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
+- **Express.js** - Fast, minimalist web framework
+- **Prisma ORM** - Next-generation TypeScript ORM
+- **MySQL** - Reliable relational database
+- **JWT** - Industry-standard authentication
+- **Cloudinary** - Cloud-based image management
+- **Docker** - Containerized deployment
+
+## Getting Started
+
+<Steps>
+  <Step title="Install dependencies">
+    Set up your development environment with Node.js and MySQL
+  </Step>
+  <Step title="Configure environment">
+    Set up your environment variables for database, JWT, and Cloudinary
+  </Step>
+  <Step title="Run migrations">
+    Initialize your database schema with Prisma migrations
+  </Step>
+  <Step title="Make your first request">
+    Register a user and start using the API
+  </Step>
+</Steps>
+
+<Card title="View Installation Guide" icon="download" href="/installation">
+  Complete installation instructions and environment setup
 </Card>

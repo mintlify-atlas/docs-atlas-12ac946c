@@ -1,0 +1,55 @@
+---
+title: "Clear Cart"
+api: "DELETE /cart/clear"
+description: "Remove all items from the authenticated user's cart"
+---
+
+## Authentication
+
+This endpoint requires authentication. Include a valid JWT token in the Authorization header.
+
+```bash
+Authorization: Bearer <token>
+```
+
+<RequestExample>
+```bash
+DELETE /cart/clear
+```
+</RequestExample>
+
+## Response
+
+Returns a `204 No Content` status on success with an empty response body.
+
+<ResponseExample>
+```text
+204 No Content
+```
+</ResponseExample>
+
+## Behavior
+
+- Removes **all items** from the user's cart
+- The cart itself remains and is not deleted
+- After clearing, the cart will exist as an empty cart
+- This operation is useful for starting fresh or after completing a checkout process
+- Use the `DELETE /cart/item/:id` endpoint if you want to remove specific items
+
+## Error Responses
+
+### Cart Not Found (404)
+```json
+{
+  "message": "Carrito no encontrado"
+}
+```
+
+This error occurs when the user doesn't have a cart yet.
+
+### Unauthorized (401)
+```json
+{
+  "message": "Usuario no autenticado"
+}
+```

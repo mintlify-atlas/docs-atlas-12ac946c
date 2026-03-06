@@ -1,122 +1,122 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "E-commerce API",
+  "theme": "sequoia",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#10B981",
+    "light": "#34D399",
+    "dark": "#059669"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/GioTaipe/E-commerce"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/GioTaipe/E-commerce"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/database-schema",
+              "concepts/authentication",
+              "concepts/authorization"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/environment-setup",
+              "guides/docker-deployment",
+              "guides/database-migrations",
+              "guides/image-uploads"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Security",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "security/rate-limiting",
+              "security/best-practices"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api/overview",
+              "api/authentication",
+              "api/errors"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Authentication",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/profile",
+              "api/auth/create-user"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "api/products/list",
+              "api/products/get",
+              "api/products/create",
+              "api/products/update",
+              "api/products/delete"
+            ]
+          },
+          {
+            "group": "Categories",
+            "pages": [
+              "api/categories/list",
+              "api/categories/create",
+              "api/categories/update",
+              "api/categories/delete"
+            ]
+          },
+          {
+            "group": "Cart",
+            "pages": [
+              "api/cart/get",
+              "api/cart/add",
+              "api/cart/update",
+              "api/cart/remove",
+              "api/cart/clear"
+            ]
+          },
+          {
+            "group": "Orders",
+            "pages": [
+              "api/orders/create",
+              "api/orders/list",
+              "api/orders/get"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

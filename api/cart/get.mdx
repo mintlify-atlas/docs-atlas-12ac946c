@@ -1,0 +1,144 @@
+---
+title: "Get Cart"
+api: "GET /cart"
+description: "Retrieve the authenticated user's shopping cart with all items and product details"
+---
+
+## Authentication
+
+This endpoint requires authentication. Include a valid JWT token in the Authorization header.
+
+```bash
+Authorization: Bearer <token>
+```
+
+## Response
+
+<ResponseField name="id" type="integer" required>
+  Unique identifier for the cart
+</ResponseField>
+
+<ResponseField name="userId" type="integer" required>
+  ID of the user who owns this cart
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the cart was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  ISO 8601 timestamp when the cart was last updated
+</ResponseField>
+
+<ResponseField name="items" type="array" required>
+  Array of cart items
+  
+  <ResponseField name="id" type="integer" required>
+    Unique identifier for the cart item
+  </ResponseField>
+  
+  <ResponseField name="cartId" type="integer" required>
+    ID of the cart this item belongs to
+  </ResponseField>
+  
+  <ResponseField name="productId" type="integer" required>
+    ID of the product
+  </ResponseField>
+  
+  <ResponseField name="quantity" type="integer" required>
+    Quantity of the product in the cart
+  </ResponseField>
+  
+  <ResponseField name="product" type="object" required>
+    Full product details
+    
+    <ResponseField name="id" type="integer" required>
+      Product ID
+    </ResponseField>
+    
+    <ResponseField name="name" type="string" required>
+      Product name
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Product description
+    </ResponseField>
+    
+    <ResponseField name="price" type="string" required>
+      Product price (decimal string)
+    </ResponseField>
+    
+    <ResponseField name="imageUrl" type="string" required>
+      URL to product image
+    </ResponseField>
+    
+    <ResponseField name="stock" type="integer" required>
+      Available stock quantity
+    </ResponseField>
+    
+    <ResponseField name="categoryId" type="integer">
+      Category ID the product belongs to
+    </ResponseField>
+    
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 timestamp when the product was created
+    </ResponseField>
+    
+    <ResponseField name="updatedAt" type="string" required>
+      ISO 8601 timestamp when the product was last updated
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "id": 1,
+  "userId": 5,
+  "createdAt": "2026-03-01T10:00:00.000Z",
+  "updatedAt": "2026-03-05T14:30:00.000Z",
+  "items": [
+    {
+      "id": 10,
+      "cartId": 1,
+      "productId": 42,
+      "quantity": 2,
+      "product": {
+        "id": 42,
+        "name": "Wireless Headphones",
+        "description": "High-quality Bluetooth headphones with noise cancellation",
+        "price": "89.99",
+        "imageUrl": "https://example.com/images/headphones.jpg",
+        "stock": 50,
+        "categoryId": 3,
+        "createdAt": "2026-01-15T08:00:00.000Z",
+        "updatedAt": "2026-02-20T12:00:00.000Z"
+      }
+    },
+    {
+      "id": 11,
+      "cartId": 1,
+      "productId": 15,
+      "quantity": 1,
+      "product": {
+        "id": 15,
+        "name": "Laptop Stand",
+        "description": "Adjustable aluminum laptop stand",
+        "price": "34.99",
+        "imageUrl": "https://example.com/images/stand.jpg",
+        "stock": 120,
+        "categoryId": 5,
+        "createdAt": "2026-01-10T08:00:00.000Z",
+        "updatedAt": "2026-02-15T10:00:00.000Z"
+      }
+    }
+  ]
+}
+```
+</ResponseExample>
+
+## Notes
+
+- If the user doesn't have a cart yet, a new empty cart will be created automatically
+- The cart is unique per user (one cart per user)
+- Product details are included in each cart item for convenience

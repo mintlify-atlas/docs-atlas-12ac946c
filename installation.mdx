@@ -1,0 +1,516 @@
+---
+title: Installation
+description: 'Complete setup guide for the E-commerce API - Development and production environments'
+---
+
+## Overview
+
+This guide walks you through setting up the E-commerce API in both development and production environments. The API is built with Node.js, TypeScript, Express, and uses MySQL as the database with Prisma ORM.
+
+<Note>
+  The installation process takes approximately 10-15 minutes for a fresh setup.
+</Note>
+
+## Prerequisites
+
+Ensure you have the following installed on your system:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node">
+    Version 18.x or higher
+  </Card>
+  <Card title="MySQL" icon="database">
+    Version 8.4 or higher
+  </Card>
+  <Card title="npm or yarn" icon="box">
+    Package manager
+  </Card>
+  <Card title="Git" icon="code-branch">
+    Version control
+  </Card>
+</CardGroup>
+
+**Optional but Recommended:**
+- Docker & Docker Compose (for containerized deployment)
+- Cloudinary account (for image uploads)
+
+## Installation Methods
+
+Choose your preferred installation method:
+
+<Tabs>
+  <Tab title="Local Development">
+    Best for development and testing
+  </Tab>
+  <Tab title="Docker">
+    Easiest setup with Docker Compose
+  </Tab>
+  <Tab title="Production">
+    For deployment to production servers
+  </Tab>
+</Tabs>
+
+## Method 1: Local Development Setup
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the source code from your repository:
+    
+    ```bash
+    git clone <your-repository-url>
+    cd ecommerce-api/backend
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required npm packages:
+    
+    ```bash
+    npm install
+    ```
+    
+    This installs the following key dependencies:
+    - `express` (5.1.0) - Web framework
+    - `@prisma/client` (6.16.2) - Database ORM
+    - `jsonwebtoken` (9.0.2) - JWT authentication
+    - `bcrypt` (6.0.0) - Password hashing
+    - `class-validator` (0.14.2) - Input validation
+    - `cloudinary` (2.9.0) - Image storage
+    - `express-rate-limit` (8.2.1) - Rate limiting
+    - `helmet` (8.1.0) - Security headers
+  </Step>
+
+  <Step title="Setup MySQL Database">
+    Create a MySQL database for the application:
+    
+    ```sql
+    CREATE DATABASE ecommerce_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE USER 'ecommerce_user'@'localhost' IDENTIFIED BY 'your_secure_password';
+    GRANT ALL PRIVILEGES ON ecommerce_db.* TO 'ecommerce_user'@'localhost';
+    FLUSH PRIVILEGES;
+    ```
+    
+    <Warning>
+      Replace `your_secure_password` with a strong password. Never use default passwords in production.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create a `.env` file in the `backend` directory:
+    
+    ```bash .env
+    # Database Configuration
+    DATABASE_URL="mysql://ecommerce_user:your_secure_password@localhost:3306/ecommerce_db"
+    
+    # JWT Configuration
+    JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
+    JWT_EXPIRY="1h"
+    
+    # Server Configuration
+    PORT=3000
+    NODE_ENV="development"
+    FRONTEND_URL="http://localhost:3001"
+    
+    # Cloudinary Configuration (Optional - for image uploads)
+    CLOUDINARY_CLOUD_NAME="your_cloud_name"
+    CLOUDINARY_API_KEY="your_api_key"
+    CLOUDINARY_API_SECRET="your_api_secret"
+    ```
+    
+    <Note>
+      **JWT_SECRET**: Generate a secure random string. Use `openssl rand -base64 32` to generate one.
+      
+      **Cloudinary**: Optional but required for product image uploads. Sign up at [cloudinary.com](https://cloudinary.com) for free.
+    </Note>
+  </Step>
+
+  <Step title="Run Database Migrations">
+    Initialize the database schema using Prisma:
+    
+    ```bash
+    npm run prisma:generate
+    npm run prisma:migrate
+    ```
+    
+    This creates all necessary tables:
+    - `User` - User accounts with authentication
+    - `Product` - Product catalog
+    - `Category` - Product categories
+    - `Cart` & `CartItem` - Shopping cart
+    - `Order` & `OrderItem` - Order management
+  </Step>
+
+  <Step title="Seed the Database (Optional)">
+    Populate the database with sample data:
+    
+    ```bash
+    npm run prisma:seed
+    ```
+    
+    This creates:
+    - Sample admin and customer users
+    - Product categories
+    - Sample products with images
+    
+    <Note>
+      Default admin credentials (if seeded):
+      - Email: `admin@example.com`
+      - Password: Check `prisma/seed.ts` file
+    </Note>
+  </Step>
+
+  <Step title="Start the Development Server">
+    Launch the API server with hot-reload:
+    
+    ```bash
+    npm run dev
+    ```
+    
+    You should see:
+    ```
+    🚀 Server running on http://localhost:3000
+    ```
+    
+    The server uses `nodemon` and `tsx` for automatic reloading when you modify TypeScript files.
+  </Step>
+</Steps>
+
+### Verify Installation
+
+Test that the API is running correctly:
+
+```bash
+curl http://localhost:3000/products
+```
+
+You should receive a JSON response with products (empty array if no data seeded).
+
+## Method 2: Docker Setup
+
+The easiest way to get started with all dependencies included.
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone <your-repository-url>
+    cd ecommerce-api
+    ```
+  </Step>
+
+  <Step title="Create Environment Files">
+    Create `.env` file in the `backend` directory with the same configuration as above, but use Docker service names:
+    
+    ```bash backend/.env
+    DATABASE_URL="mysql://ecommerce_user:ecommerce_pass@mysql:3306/ecommerce_db"
+    JWT_SECRET="your-super-secret-jwt-key"
+    JWT_EXPIRY="1h"
+    PORT=3000
+    NODE_ENV="development"
+    FRONTEND_URL="http://localhost:4200"
+    ```
+    
+    Create a root `.env` file for Docker Compose:
+    
+    ```bash .env
+    MYSQL_ROOT_PASSWORD=root_password
+    MYSQL_DATABASE=ecommerce_db
+    MYSQL_USER=ecommerce_user
+    MYSQL_PASSWORD=ecommerce_pass
+    ```
+  </Step>
+
+  <Step title="Build and Start Containers">
+    Launch all services with Docker Compose:
+    
+    ```bash
+    docker-compose up -d
+    ```
+    
+    This starts:
+    - **MySQL** on port 3306
+    - **Backend API** on port 3000
+    - **Frontend** (if available) on port 4200
+    
+    Wait for the health check to pass (about 30 seconds).
+  </Step>
+
+  <Step title="Run Migrations">
+    Execute Prisma migrations inside the container:
+    
+    ```bash
+    docker-compose exec backend npm run prisma:migrate
+    docker-compose exec backend npm run prisma:seed
+    ```
+  </Step>
+</Steps>
+
+### Docker Commands
+
+```bash
+# View logs
+docker-compose logs -f backend
+
+# Stop all services
+docker-compose down
+
+# Rebuild after code changes
+docker-compose up -d --build
+
+# Access MySQL
+docker-compose exec mysql mysql -u ecommerce_user -p ecommerce_db
+```
+
+## Method 3: Production Deployment
+
+<Steps>
+  <Step title="Build the Application">
+    Compile TypeScript to JavaScript:
+    
+    ```bash
+    npm run build
+    ```
+    
+    This creates a `dist/` directory with compiled code using the `tsconfig.build.json` configuration.
+  </Step>
+
+  <Step title="Set Production Environment Variables">
+    Ensure your production `.env` has:
+    
+    ```bash
+    NODE_ENV="production"
+    DATABASE_URL="mysql://user:password@production-host:3306/ecommerce_db"
+    JWT_SECRET="<strong-random-secret>"
+    JWT_EXPIRY="1h"
+    PORT=3000
+    FRONTEND_URL="https://your-frontend-domain.com"
+    
+    # Cloudinary (Required for production)
+    CLOUDINARY_CLOUD_NAME="your_cloud_name"
+    CLOUDINARY_API_KEY="your_api_key"
+    CLOUDINARY_API_SECRET="your_api_secret"
+    ```
+    
+    <Warning>
+      **Security Checklist**:
+      - Use a strong, unique JWT_SECRET (32+ characters)
+      - Enable SSL/TLS for MySQL connections
+      - Set FRONTEND_URL to your actual domain for CORS
+      - Never commit `.env` files to version control
+    </Warning>
+  </Step>
+
+  <Step title="Run Database Migrations">
+    ```bash
+    npm run prisma:generate
+    npm run prisma:migrate
+    ```
+    
+    <Note>
+      For zero-downtime deployments, use Prisma's migration strategies and consider running migrations in a separate deployment step.
+    </Note>
+  </Step>
+
+  <Step title="Start the Production Server">
+    ```bash
+    npm start
+    ```
+    
+    Or use a process manager like PM2:
+    
+    ```bash
+    npm install -g pm2
+    pm2 start dist/server.js --name "ecommerce-api"
+    pm2 save
+    pm2 startup
+    ```
+  </Step>
+</Steps>
+
+### Production Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Reverse Proxy" icon="server">
+    Use Nginx or Caddy to handle SSL/TLS termination and serve as a reverse proxy to the Node.js application.
+  </Card>
+  <Card title="Process Management" icon="gears">
+    Use PM2 or systemd to ensure the application restarts on crashes and starts on system boot.
+  </Card>
+  <Card title="Database Backups" icon="database">
+    Schedule regular MySQL backups and test restoration procedures.
+  </Card>
+  <Card title="Monitoring" icon="chart-line">
+    Implement logging and monitoring with tools like Winston, Sentry, or Datadog.
+  </Card>
+</CardGroup>
+
+## Environment Variables Reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | Yes | - | MySQL connection string |
+| `JWT_SECRET` | Yes | - | Secret key for JWT signing |
+| `JWT_EXPIRY` | No | `1h` | Token expiration time (e.g., `1h`, `7d`) |
+| `PORT` | No | `3000` | Server port |
+| `NODE_ENV` | No | `development` | Environment mode |
+| `FRONTEND_URL` | No | `http://localhost:3001` | Frontend origin for CORS |
+| `CLOUDINARY_CLOUD_NAME` | For uploads | - | Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | For uploads | - | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | For uploads | - | Cloudinary API secret |
+
+## Database Schema
+
+The Prisma schema (`prisma/schema.prisma`) defines the following models:
+
+```prisma
+enum Role {
+  customer
+  admin
+}
+
+enum OrderStatus {
+  pending
+  shipped
+  delivered
+  cancelled
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(customer)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  cart         Cart?
+  orders       Order[]
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String    @indexed
+  description String?
+  price       Decimal   @db.Decimal(10, 2)
+  imageUrl    String
+  stock       Int
+  categoryId  Int?
+  // ... relations
+}
+
+// ... other models
+```
+
+## Testing the Installation
+
+Run the test suite to verify everything is working:
+
+```bash
+npm test
+```
+
+This runs Jest tests for:
+- Authentication service (`auth.service.test.ts`)
+- Product service (`product.service.test.ts`)
+- Cart service (`cart.service.test.ts`)
+- Order service (`order.service.test.ts`)
+- Category service (`category.service.test.ts`)
+
+## Common Issues
+
+### Database Connection Errors
+
+**Problem**: `Can't connect to MySQL server`
+
+**Solutions**:
+- Verify MySQL is running: `systemctl status mysql` or `docker-compose ps`
+- Check DATABASE_URL credentials and hostname
+- Ensure MySQL port (3306) is not blocked by firewall
+- For Docker: Use service name `mysql` instead of `localhost`
+
+### Prisma Migration Errors
+
+**Problem**: `Migration failed` or `Schema out of sync`
+
+**Solutions**:
+```bash
+# Reset database (WARNING: deletes all data)
+npx prisma migrate reset
+
+# Generate Prisma Client
+npm run prisma:generate
+
+# Run migrations
+npm run prisma:migrate
+```
+
+### Port Already in Use
+
+**Problem**: `EADDRINUSE: address already in use :::3000`
+
+**Solutions**:
+- Change PORT in `.env` file
+- Kill process using port 3000: `lsof -ti:3000 | xargs kill -9`
+
+### TypeScript Compilation Errors
+
+**Problem**: Build fails with TypeScript errors
+
+**Solutions**:
+- Ensure TypeScript version is 5.9.3: `npm list typescript`
+- Clean build directory: `rm -rf dist/`
+- Reinstall dependencies: `rm -rf node_modules && npm install`
+
+### Cloudinary Upload Errors
+
+**Problem**: Image uploads fail
+
+**Solutions**:
+- Verify Cloudinary credentials are correct
+- Check image size is under 5MB limit
+- Ensure CLOUDINARY variables are set in `.env`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start Tutorial"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Make your first API calls and test the installation
+  </Card>
+  <Card
+    title="API Reference"
+    icon="book"
+    href="/api/overview"
+  >
+    Explore all available endpoints
+  </Card>
+  <Card
+    title="Architecture Overview"
+    icon="sitemap"
+    href="/introduction"
+  >
+    Understand the API architecture and design
+  </Card>
+  <Card
+    title="Docker Deployment"
+    icon="docker"
+    href="/guides/docker-deployment"
+  >
+    Deploy with Docker and docker-compose
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+If you encounter issues not covered in this guide:
+
+1. Check the logs: `npm run dev` shows detailed error messages
+2. Review Prisma logs: `DEBUG="prisma:*" npm run dev`
+3. Verify environment variables: `printenv | grep -E '(DATABASE|JWT|CLOUDINARY)'`
+4. Test database connection: `npx prisma db pull`
+
+<Note>
+  The API uses structured logging in development mode. Check console output for detailed error messages and stack traces.
+</Note>

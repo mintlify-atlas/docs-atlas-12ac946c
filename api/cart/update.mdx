@@ -1,0 +1,106 @@
+---
+title: "Update Cart Item"
+api: "PUT /cart/item/:id"
+description: "Update the quantity of a specific item in the authenticated user's cart"
+---
+
+## Authentication
+
+This endpoint requires authentication. Include a valid JWT token in the Authorization header.
+
+```bash
+Authorization: Bearer <token>
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the cart item to update (not the product ID)
+</ParamField>
+
+## Request Body
+
+<ParamField body="quantity" type="integer" required>
+  The new quantity for the cart item. Must be at least 1.
+</ParamField>
+
+<RequestExample>
+```bash
+PUT /cart/item/10
+```
+
+```json
+{
+  "quantity": 5
+}
+```
+</RequestExample>
+
+## Response
+
+Returns the updated cart item.
+
+<ResponseField name="id" type="integer" required>
+  Unique identifier for the cart item
+</ResponseField>
+
+<ResponseField name="cartId" type="integer" required>
+  ID of the cart this item belongs to
+</ResponseField>
+
+<ResponseField name="productId" type="integer" required>
+  ID of the product
+</ResponseField>
+
+<ResponseField name="quantity" type="integer" required>
+  Updated quantity of the product in the cart
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "id": 10,
+  "cartId": 1,
+  "productId": 42,
+  "quantity": 5
+}
+```
+</ResponseExample>
+
+## Behavior
+
+- This endpoint **sets** the quantity to the specified value (not incremental)
+- The cart item must belong to the authenticated user's cart
+- Use the DELETE endpoint if you want to remove the item entirely
+
+## Error Responses
+
+### Cart Item Not Found (404)
+```json
+{
+  "message": "Item no encontrado en tu carrito"
+}
+```
+
+This error occurs when:
+- The cart item ID doesn't exist
+- The cart item belongs to another user's cart
+
+### Validation Error (400)
+```json
+{
+  "errors": [
+    {
+      "field": "quantity",
+      "message": "La cantidad debe ser al menos 1"
+    }
+  ]
+}
+```
+
+### Unauthorized (401)
+```json
+{
+  "message": "Usuario no autenticado"
+}
+```

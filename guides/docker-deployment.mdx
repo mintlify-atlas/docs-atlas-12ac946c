@@ -1,0 +1,360 @@
+---
+title: 'Docker Deployment'
+description: 'Deploy the E-commerce API using Docker and Docker Compose'
+icon: 'docker'
+---
+
+## Overview
+
+The E-commerce API is containerized using Docker with a multi-stage build process. This guide covers deploying the complete stack using Docker Compose.
+
+## Architecture
+
+The application consists of three services:
+
+- **MySQL**: Database server (MySQL 8.4)
+- **Backend**: Node.js API server (TypeScript)
+- **Frontend**: Next.js application
+
+## Prerequisites
+
+- Docker Engine 20.10+
+- Docker Compose 2.0+
+- Environment variables configured (see [Environment Setup](/guides/environment-setup))
+
+## Docker Compose Configuration
+
+The complete stack is defined in `docker-compose.yml:1-44`:
+
+```yaml
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  frontend:
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:3000
+    ports:
+      - "4200:3000"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+```
+
+## Backend Dockerfile
+
+The backend uses a multi-stage build for optimized production images (`backend/dockerfile:1-32`):
+
+```dockerfile
+FROM node:20-slim AS base
+
+# Install dependencies (including dev for compiling TS)
+FROM base AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+# Compile TypeScript
+FROM deps AS builder
+WORKDIR /app
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+# Production image (only production dependencies)
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/prisma ./prisma
+
+EXPOSE 3000
+
+CMD ["node", "dist/server.js"]
+```
+
+### Build Stages Explained
+
+<Steps>
+  <Step title="Base Stage">
+    Uses `node:20-slim` as the foundation for all subsequent stages
+  </Step>
+  
+  <Step title="Dependencies Stage">
+    Installs all dependencies (including devDependencies) needed for building
+  </Step>
+  
+  <Step title="Builder Stage">
+    - Generates Prisma Client
+    - Compiles TypeScript to JavaScript (outputs to `dist/`)
+  </Step>
+  
+  <Step title="Runner Stage (Final)">
+    - Installs only production dependencies (`--omit=dev`)
+    - Copies compiled code and Prisma client from builder
+    - Sets `NODE_ENV=production`
+    - Exposes port 3000
+  </Step>
+</Steps>
+
+## Deployment Steps
+
+<Steps>
+  <Step title="Prepare environment files">
+    Create `.env` in the project root for Docker Compose:
+    
+    ```bash
+    MYSQL_ROOT_PASSWORD="rootpassword"
+    MYSQL_DATABASE="ecommerce_db"
+    MYSQL_USER="ecommerce_user"
+    MYSQL_PASSWORD="ecommerce_password"
+    ```
+    
+    Create `backend/.env` for the API:
+    
+    ```bash
+    DATABASE_URL="mysql://ecommerce_user:ecommerce_password@mysql:3306/ecommerce_db"
+    JWT_SECRET="your-secret-key"
+    CLOUDINARY_CLOUD_NAME="your-cloud-name"
+    CLOUDINARY_API_KEY="your-api-key"
+    CLOUDINARY_API_SECRET="your-api-secret"
+    ```
+    
+    <Warning>
+    The `DATABASE_URL` host must be `mysql` (the service name), not `localhost`.
+    </Warning>
+  </Step>
+  
+  <Step title="Build and start services">
+    ```bash
+    docker-compose up --build -d
+    ```
+    
+    This will:
+    - Build the backend and frontend images
+    - Pull the MySQL 8.4 image
+    - Create a named volume for database persistence
+    - Start all services in detached mode
+  </Step>
+  
+  <Step title="Wait for health checks">
+    The backend service depends on MySQL being healthy:
+    
+    ```bash
+    docker-compose ps
+    ```
+    
+    Wait until all services show as "Up" or "healthy"
+  </Step>
+  
+  <Step title="Run database migrations">
+    Execute Prisma migrations inside the backend container:
+    
+    ```bash
+    docker-compose exec backend npx prisma migrate deploy
+    ```
+    
+    <Info>
+    Use `migrate deploy` in production, not `migrate dev`. See [Database Migrations](/guides/database-migrations) for details.
+    </Info>
+  </Step>
+  
+  <Step title="(Optional) Seed the database">
+    Populate with initial data:
+    
+    ```bash
+    docker-compose exec backend npm run prisma:seed
+    ```
+  </Step>
+  
+  <Step title="Verify deployment">
+    Test the API:
+    
+    ```bash
+    curl http://localhost:3000/products
+    ```
+    
+    Access the frontend at `http://localhost:4200`
+  </Step>
+</Steps>
+
+## Service Dependencies
+
+The compose file ensures proper startup order:
+
+```yaml
+backend:
+  depends_on:
+    mysql:
+      condition: service_healthy  # Waits for MySQL health check
+
+frontend:
+  depends_on:
+    - backend  # Waits for backend to start (not healthy)
+```
+
+## Health Check Configuration
+
+MySQL service includes a health check:
+
+- **Test**: `mysqladmin ping -h localhost`
+- **Interval**: 10 seconds
+- **Timeout**: 5 seconds
+- **Retries**: 5 attempts
+- **Start period**: 30 seconds (grace period)
+
+The backend won't start until MySQL passes this health check.
+
+## Volume Persistence
+
+Database data is persisted in a named volume:
+
+```yaml
+volumes:
+  db_data:
+```
+
+This ensures data survives container restarts. To completely reset the database:
+
+```bash
+docker-compose down -v  # WARNING: Deletes all data
+```
+
+## Useful Commands
+
+### View Logs
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f backend
+```
+
+### Restart Services
+
+```bash
+# Restart all
+docker-compose restart
+
+# Restart one service
+docker-compose restart backend
+```
+
+### Execute Commands
+
+```bash
+# Open shell in backend container
+docker-compose exec backend sh
+
+# Run Prisma commands
+docker-compose exec backend npx prisma studio
+```
+
+### Stop and Remove
+
+```bash
+# Stop services (keeps volumes)
+docker-compose down
+
+# Stop and remove volumes (deletes data)
+docker-compose down -v
+```
+
+## Production Considerations
+
+<Warning>
+The example configuration is for development. For production:
+</Warning>
+
+- Use secrets management (Docker Secrets, Vault, etc.) instead of `.env` files
+- Configure reverse proxy (nginx, Traefik) for SSL termination
+- Set resource limits (memory, CPU) for containers
+- Use managed database service instead of container
+- Enable Docker logging driver (e.g., json-file with rotation)
+- Implement monitoring and alerting
+
+## Troubleshooting
+
+### Backend fails to connect to MySQL
+
+**Symptom**: `Error: P1001: Can't reach database server at mysql:3306`
+
+**Solution**: Ensure the `DATABASE_URL` uses `mysql` as hostname, not `localhost`:
+
+```bash
+DATABASE_URL="mysql://user:password@mysql:3306/db"
+```
+
+### Prisma Client not generated
+
+**Symptom**: `Error: Cannot find module '@prisma/client'`
+
+**Solution**: Rebuild the backend image:
+
+```bash
+docker-compose build --no-cache backend
+docker-compose up -d backend
+```
+
+### Port already in use
+
+**Symptom**: `Error: bind: address already in use`
+
+**Solution**: Change the port mapping in `docker-compose.yml`:
+
+```yaml
+ports:
+  - "3001:3000"  # Map to different host port
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Migrations" icon="database" href="/guides/database-migrations">
+    Learn how to manage schema changes with Prisma
+  </Card>
+  
+  <Card title="Image Uploads" icon="image" href="/guides/image-uploads">
+    Configure Cloudinary for product images
+  </Card>
+</CardGroup>

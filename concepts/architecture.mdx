@@ -1,0 +1,266 @@
+---
+title: "System Architecture"
+description: "Understanding the E-commerce API architecture, folder structure, and request flow"
+---
+
+## Overview
+
+The E-commerce API follows a layered architecture pattern, separating concerns across controllers, services, repositories, and middleware. This design promotes maintainability, testability, and scalability.
+
+## Architecture Layers
+
+```
+Client Request
+    ↓
+Middleware (CORS, Helmet, Auth, Role, Validation)
+    ↓
+Routes (Endpoint definitions)
+    ↓
+Controllers (Request/Response handling)
+    ↓
+Services (Business logic)
+    ↓
+Repositories (Data access)
+    ↓
+Prisma (ORM)
+    ↓
+MySQL Database
+```
+
+## Folder Structure
+
+The backend source code is organized as follows:
+
+```bash
+backend/src/
+├── config/          # Configuration files (database, env, cloudinary)
+├── controllers/     # HTTP request handlers
+├── dto/             # Data Transfer Objects for validation
+├── middleware/      # Express middleware (auth, roles, validation, errors)
+├── repositories/    # Database access layer (Prisma queries)
+├── routes/          # API route definitions
+├── services/        # Business logic layer
+├── types/           # TypeScript type definitions
+├── utils/           # Utility functions (JWT, errors)
+├── app.ts           # Express app configuration
+└── server.ts        # Server entry point
+```
+
+### Directory Responsibilities
+
+<AccordionGroup>
+  <Accordion title="Controllers">
+    Handle HTTP requests and responses. Controllers receive validated data from middleware, delegate business logic to services, and format responses.
+
+    **Files:**
+    - `auth.controller.ts` - User registration and login
+    - `cart.controller.ts` - Shopping cart operations
+    - `category.controller.ts` - Product category management
+    - `order.controller.ts` - Order processing
+    - `product.controller.ts` - Product CRUD operations
+  </Accordion>
+
+  <Accordion title="Services">
+    Contain business logic and orchestrate operations across multiple repositories. Services are responsible for data validation, transformation, and complex workflows.
+
+    **Example:** `auth.services.ts` handles password hashing, JWT generation, and user validation.
+  </Accordion>
+
+  <Accordion title="Repositories">
+    Abstract database operations using Prisma. Each repository corresponds to a domain entity (User, Product, Cart, Order, Category).
+
+    **Files:**
+    - `user.repository.ts`
+    - `product.repository.ts`
+    - `cart.repository.ts`
+    - `order.repository.ts`
+    - `category.repository.ts`
+  </Accordion>
+
+  <Accordion title="Middleware">
+    Process requests before they reach controllers. Middleware handles cross-cutting concerns like authentication, authorization, validation, and error handling.
+
+    **Files:**
+    - `auth.middleware.ts` - JWT token verification
+    - `role.middleware.ts` - Role-based access control
+    - `validation.middleware.ts` - DTO validation using class-validator
+    - `error.middleware.ts` - Centralized error handling
+  </Accordion>
+
+  <Accordion title="DTOs (Data Transfer Objects)">
+    Define the shape and validation rules for incoming request data using class-validator decorators.
+
+    **Files:**
+    - `auth.dto.ts`
+    - `cart.dto.ts`
+    - `category.dto.ts`
+    - `product.dto.ts`
+  </Accordion>
+</AccordionGroup>
+
+## Application Configuration
+
+The Express application is configured in `app.ts` with the following middleware stack:
+
+```typescript
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import { errorHandler } from "./middleware/error.middleware.js";
+import fileUpload from 'express-fileupload';
+
+const app = express();
+
+// Security headers
+app.use(helmet());
+
+// CORS configuration
+app.use(cors({
+  origin: config.frontendUrl,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// JSON parsing with size limit
+app.use(express.json({ limit: '1mb' }));
+
+// File upload configuration
+app.use(fileUpload({
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  abortOnLimit: true,
+  safeFileNames: true,
+  preserveExtension: true
+}));
+
+// Route registration
+app.use("/auth", authRoutes);
+app.use("/categories", categoryRoutes);
+app.use("/products", productRoutes);
+app.use("/cart", cartRoutes);
+app.use("/orders", orderRoutes);
+
+// Error handling middleware (must be last)
+app.use(errorHandler);
+```
+
+**Source:** `backend/src/app.ts`
+
+## Request Flow Example
+
+Let's trace a request to create a new product:
+
+<Steps>
+  <Step title="Client sends POST request">
+    ```bash
+    POST /products
+    Authorization: Bearer <jwt-token>
+    Content-Type: application/json
+
+    {
+      "name": "Laptop",
+      "price": 999.99,
+      "stock": 10,
+      "categoryId": 1
+    }
+    ```
+  </Step>
+
+  <Step title="Middleware chain executes">
+    1. **CORS & Helmet** - Security headers and origin validation
+    2. **JSON Parser** - Parse request body
+    3. **authMiddleware** - Verify JWT token (`auth.middleware.ts:7`)
+    4. **adminOnly** - Check user has admin role (`role.middleware.ts:37`)
+    5. **validateDto** - Validate against CreateProductDto (`validation.middleware.ts:8`)
+  </Step>
+
+  <Step title="Controller receives request">
+    `ProductController.create()` extracts validated data from `req.body`
+  </Step>
+
+  <Step title="Service processes business logic">
+    `ProductService` handles domain logic (e.g., checking stock, formatting data)
+  </Step>
+
+  <Step title="Repository persists data">
+    `ProductRepository` uses Prisma to insert the product into the database
+  </Step>
+
+  <Step title="Response returns to client">
+    ```json
+    {
+      "id": 42,
+      "name": "Laptop",
+      "price": 999.99,
+      "stock": 10,
+      "categoryId": 1,
+      "createdAt": "2026-03-06T10:30:00Z",
+      "updatedAt": "2026-03-06T10:30:00Z"
+    }
+    ```
+  </Step>
+</Steps>
+
+## Error Handling
+
+The API uses centralized error handling through the `errorHandler` middleware:
+
+```typescript
+export function errorHandler(err: unknown, req: Request, res: Response, next: NextFunction) {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ error: err.message });
+    return;
+  }
+
+  // Log unexpected errors but don't expose details
+  console.error(err);
+  res.status(500).json({ error: "Error interno del servidor" });
+}
+```
+
+**Source:** `backend/src/middleware/error.middleware.ts`
+
+### Custom Error Classes
+
+The API defines domain-specific errors:
+- `ConflictError` (409) - Resource already exists
+- `UnauthorizedError` (401) - Invalid credentials
+- `NotFoundError` (404) - Resource not found
+- `AppError` - Base error class
+
+## Configuration Management
+
+Environment variables are validated and centralized in `config/index.ts`:
+
+```typescript
+export const config = {
+  jwtSecret: getRequiredEnv("JWT_SECRET"),
+  jwtExpiry: process.env.JWT_EXPIRY || "1h",
+  dbUrl: getRequiredEnv("DATABASE_URL"),
+  nodeEnv: process.env.NODE_ENV || "development",
+  frontendUrl: process.env.FRONTEND_URL || "http://localhost:3001"
+};
+```
+
+**Source:** `backend/src/config/index.ts`
+
+<Warning>
+  The `getRequiredEnv()` helper throws an error if required environment variables are missing, preventing the server from starting with an invalid configuration.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Schema" icon="database" href="/concepts/database-schema">
+    Explore the complete Prisma schema and data models
+  </Card>
+  <Card title="Authentication" icon="lock" href="/concepts/authentication">
+    Learn how JWT authentication is implemented
+  </Card>
+  <Card title="Authorization" icon="shield" href="/concepts/authorization">
+    Understand role-based access control
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    View all available endpoints
+  </Card>
+</CardGroup>

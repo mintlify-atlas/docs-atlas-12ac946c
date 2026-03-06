@@ -1,0 +1,95 @@
+---
+title: 'Get Product'
+api: 'GET /products/:id'
+description: 'Retrieve details of a specific product by ID'
+---
+
+## Overview
+
+This endpoint retrieves detailed information about a single product using its unique identifier. It is a public endpoint that does not require authentication.
+
+## Endpoint
+
+```
+GET /products/:id
+```
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the product to retrieve
+</ParamField>
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Response
+
+Returns a single product object.
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the product
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Product name
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Product description
+</ResponseField>
+
+<ResponseField name="price" type="decimal">
+  Product price (decimal with 2 decimal places)
+</ResponseField>
+
+<ResponseField name="imageUrl" type="string">
+  URL to the product image
+</ResponseField>
+
+<ResponseField name="stock" type="integer">
+  Available stock quantity
+</ResponseField>
+
+<ResponseField name="categoryId" type="integer" optional>
+  ID of the category this product belongs to
+</ResponseField>
+
+<ResponseField name="createdAt" type="datetime">
+  Timestamp when the product was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="datetime">
+  Timestamp when the product was last updated
+</ResponseField>
+
+## Example Response
+
+```json
+{
+  "id": 1,
+  "name": "Laptop",
+  "description": "High-performance laptop for professionals",
+  "price": "1299.99",
+  "imageUrl": "https://example.com/uploads/laptop.jpg",
+  "stock": 15,
+  "categoryId": 2,
+  "createdAt": "2026-01-15T10:30:00.000Z",
+  "updatedAt": "2026-02-20T14:25:00.000Z"
+}
+```
+
+## Error Responses
+
+### Product Not Found
+
+If the product with the specified ID does not exist:
+
+```json
+{
+  "error": "Product not found"
+}
+```
+
+Status Code: `404 Not Found`

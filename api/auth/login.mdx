@@ -1,0 +1,127 @@
+---
+title: 'Login User'
+api: 'POST /auth/login'
+description: 'Authenticate a user and receive an access token'
+---
+
+## Overview
+
+Authenticates a user with email and password credentials, returning a JWT token for subsequent authenticated requests. This endpoint is rate-limited to 10 requests per 15-minute window.
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  The user's email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password. Must be at least 6 characters long.
+</ParamField>
+
+## Request Example
+
+```json
+{
+  "email": "john.doe@example.com",
+  "password": "securePassword123"
+}
+```
+
+## Response
+
+<ResponseField name="user" type="object">
+  The authenticated user object without sensitive data
+  
+  <ResponseField name="user.id" type="string">
+    Unique user identifier
+  </ResponseField>
+  
+  <ResponseField name="user.name" type="string">
+    User's full name
+  </ResponseField>
+  
+  <ResponseField name="user.email" type="string">
+    User's email address
+  </ResponseField>
+  
+  <ResponseField name="user.role" type="string">
+    User's role ("customer" or "admin")
+  </ResponseField>
+  
+  <ResponseField name="user.createdAt" type="string">
+    ISO 8601 timestamp of account creation
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  JWT access token to be used for authenticated requests. Include this token in the Authorization header as `Bearer <token>` for subsequent API calls.
+</ResponseField>
+
+## Response Example
+
+```json
+{
+  "user": {
+    "id": "1",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "customer",
+    "createdAt": "2026-03-06T10:30:00.000Z"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEiLCJlbWFpbCI6ImpvaG4uZG9lQGV4YW1wbGUuY29tIiwicm9sZSI6ImN1c3RvbWVyIiwiaWF0IjoxNzA5NzI1ODAwfQ.example_signature"
+}
+```
+
+## Error Responses
+
+### 401 Unauthorized
+
+Returned when credentials are invalid. The error message is intentionally generic to avoid revealing whether the user exists.
+
+```json
+{
+  "error": "Email o contraseña inválidos"
+}
+```
+
+### 400 Bad Request
+
+Returned when validation fails (invalid email format, password too short, missing fields).
+
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    "La contraseña debe tener al menos 6 caracteres"
+  ]
+}
+```
+
+### 429 Too Many Requests
+
+Returned when rate limit is exceeded (10 requests per 15 minutes).
+
+```json
+{
+  "error": "Demasiados intentos. Intenta de nuevo en 15 minutos."
+}
+```
+
+## Using the Token
+
+Once you receive the JWT token, include it in the `Authorization` header for authenticated requests:
+
+```bash
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+## Notes
+
+- The JWT token contains the user's id, email, and role
+- Passwords are never logged or exposed in responses
+- Failed login attempts do not reveal whether the email exists in the system
+- The token should be stored securely on the client side

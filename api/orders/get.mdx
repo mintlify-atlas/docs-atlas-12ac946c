@@ -1,0 +1,180 @@
+---
+title: "Get Order"
+api: "GET /orders/:id"
+description: "Get details of a specific order"
+---
+
+Retrieves detailed information about a specific order. Users can only access their own orders.
+
+## Authentication
+
+This endpoint requires authentication. Include a valid JWT token in the Authorization header.
+
+```
+Authorization: Bearer <your-token>
+```
+
+## Path Parameters
+
+<ParamField path="id" type="number" required>
+  The unique identifier of the order to retrieve
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="number" required>
+  Unique identifier for the order
+</ResponseField>
+
+<ResponseField name="userId" type="number" required>
+  ID of the user who placed the order
+</ResponseField>
+
+<ResponseField name="total" type="string" required>
+  Total amount for the order (decimal as string)
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current status of the order
+  
+  Possible values:
+  - `pending` - Order has been created but not yet processed
+  - `shipped` - Order has been shipped
+  - `delivered` - Order has been delivered
+  - `cancelled` - Order has been cancelled
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the order was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  ISO 8601 timestamp when the order was last updated
+</ResponseField>
+
+<ResponseField name="items" type="array" required>
+  Array of order items
+  
+  <ResponseField name="id" type="number" required>
+    Unique identifier for the order item
+  </ResponseField>
+  
+  <ResponseField name="orderId" type="number" required>
+    ID of the parent order
+  </ResponseField>
+  
+  <ResponseField name="productId" type="number" required>
+    ID of the product
+  </ResponseField>
+  
+  <ResponseField name="quantity" type="number" required>
+    Quantity of the product ordered
+  </ResponseField>
+  
+  <ResponseField name="priceAtPurchase" type="string" required>
+    Price of the product at the time of purchase (decimal as string)
+  </ResponseField>
+  
+  <ResponseField name="product" type="object" required>
+    Product details
+    
+    <ResponseField name="id" type="number" required>
+      Product ID
+    </ResponseField>
+    
+    <ResponseField name="name" type="string" required>
+      Product name
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Product description
+    </ResponseField>
+    
+    <ResponseField name="price" type="string" required>
+      Current price of the product (decimal as string)
+    </ResponseField>
+    
+    <ResponseField name="imageUrl" type="string" required>
+      URL to the product image
+    </ResponseField>
+    
+    <ResponseField name="stock" type="number" required>
+      Current stock level
+    </ResponseField>
+    
+    <ResponseField name="categoryId" type="number">
+      ID of the product's category
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "id": 42,
+  "userId": 5,
+  "total": "149.97",
+  "status": "shipped",
+  "createdAt": "2026-03-01T10:30:00.000Z",
+  "updatedAt": "2026-03-03T09:15:00.000Z",
+  "items": [
+    {
+      "id": 101,
+      "orderId": 42,
+      "productId": 15,
+      "quantity": 2,
+      "priceAtPurchase": "49.99",
+      "product": {
+        "id": 15,
+        "name": "Wireless Headphones",
+        "description": "High-quality Bluetooth headphones with noise cancellation",
+        "price": "54.99",
+        "imageUrl": "https://example.com/images/headphones.jpg",
+        "stock": 25,
+        "categoryId": 3
+      }
+    },
+    {
+      "id": 102,
+      "orderId": 42,
+      "productId": 23,
+      "quantity": 1,
+      "priceAtPurchase": "49.99",
+      "product": {
+        "id": 23,
+        "name": "USB-C Cable",
+        "description": "Fast charging USB-C cable, 6ft length",
+        "price": "49.99",
+        "imageUrl": "https://example.com/images/cable.jpg",
+        "stock": 100,
+        "categoryId": 3
+      }
+    }
+  ]
+}
+```
+</ResponseExample>
+
+## Error Responses
+
+### 401 Unauthorized
+
+Returned when the authentication token is missing or invalid.
+
+```json
+{
+  "error": "Usuario no autenticado"
+}
+```
+
+### 404 Not Found
+
+Returned when:
+- The order does not exist
+- The order belongs to a different user
+
+```json
+{
+  "error": "Orden no encontrada"
+}
+```

@@ -1,0 +1,663 @@
+---
+title: 'Image Uploads'
+description: 'Implement product image uploads using Cloudinary'
+icon: 'image'
+---
+
+## Overview
+
+The E-commerce API uses [Cloudinary](https://cloudinary.com) for image storage and management. This guide covers the complete implementation of image uploads for product images.
+
+## Architecture
+
+Image upload flow:
+
+1. Client sends multipart/form-data request with image file
+2. Express file upload middleware validates and parses the file
+3. Cloudinary utility validates file type and size
+4. Image is uploaded to Cloudinary via streaming API
+5. Secure URL is returned and stored in database
+
+## Configuration
+
+### Environment Variables
+
+Configure Cloudinary credentials in `backend/.env`:
+
+```bash
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+```
+
+See [Environment Setup](/guides/environment-setup) for details on obtaining these credentials.
+
+### Cloudinary Client
+
+The Cloudinary client is configured in `backend/src/config/cloudinary.ts:1-18`:
+
+```typescript
+import { v2 as cloudinary } from "cloudinary";
+
+const requiredVars = ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"] as const;
+
+for (const varName of requiredVars) {
+  if (!process.env[varName]) {
+    throw new Error(`Variable de entorno ${varName} no definida`);
+  }
+}
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+  api_key: process.env.CLOUDINARY_API_KEY!,
+  api_secret: process.env.CLOUDINARY_API_SECRET!,
+});
+
+export default cloudinary;
+```
+
+<Note>
+The configuration validates all required variables at startup and throws an error if any are missing.
+</Note>
+
+### Express File Upload Middleware
+
+Configured in `backend/src/app.ts:31-39`:
+
+```typescript
+import fileUpload from 'express-fileupload';
+
+app.use(fileUpload({
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB maximum
+  },
+  abortOnLimit: true,
+  safeFileNames: true,
+  preserveExtension: true,
+  createParentPath: true
+}));
+```
+
+## Upload Utility
+
+The core upload logic is in `backend/src/utils/cloudinary.ts:49-73`:
+
+```typescript
+import cloudinary from "../config/cloudinary.js";
+import { UploadedFile } from "express-fileupload";
+
+const ALLOWED_MIME_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+
+const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+
+export const uploadImage = async (image: UploadedFile): Promise<string> => {
+  validateImageFile(image);
+
+  const safeName = sanitizeFileName(image.name);
+  const publicId = `${Date.now()}_${safeName.replace(/\.[^.]+$/, "")}`;
+
+  return new Promise<string>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "/ECOMMERCE/PRODUCTS",
+        public_id: publicId,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) return reject(error);
+
+        if (!result) return reject(new Error("Cloudinary no devolvió resultado"));
+        resolve(result.secure_url);
+      },
+    );
+    stream.end(image.data);
+  });
+};
+```
+
+## Validation
+
+### File Type Validation
+
+From `backend/src/utils/cloudinary.ts:17-23`:
+
+```typescript
+function validateImageFile(file: UploadedFile): void {
+  // Validate MIME type
+  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    throw new Error(
+      `Invalid file type: ${file.mimetype}. Allowed types: ${ALLOWED_MIME_TYPES.join(", ")}`,
+    );
+  }
+
+  // Validate file extension
+  const fileExtension = file.name
+    .substring(file.name.lastIndexOf("."))
+    .toLowerCase();
+  if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+    throw new Error(
+      `Invalid file extension: ${fileExtension}. Allowed extensions: ${ALLOWED_EXTENSIONS.join(", ")}`,
+    );
+  }
+
+  // File size limit (5MB)
+  const maxSize = 5 * 1024 * 1024;
+  if (file.size > maxSize) {
+    throw new Error("El archivo es demasiado grande. Tamaño máximo: 5MB");
+  }
+}
+```
+
+### Allowed File Types
+
+- **MIME types**: `image/jpeg`, `image/jpg`, `image/png`, `image/webp`, `image/gif`
+- **Extensions**: `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`
+- **Maximum size**: 5MB
+
+### File Name Sanitization
+
+From `backend/src/utils/cloudinary.ts:42-47`:
+
+```typescript
+function sanitizeFileName(name: string): string {
+  // Extract only the file name (prevent path traversal)
+  const baseName = name.replace(/^.*[\\\/]/, "");
+  // Remove special characters, keep only alphanumerics, dashes, dots, underscores
+  return baseName.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+```
+
+This prevents:
+- Path traversal attacks
+- Special characters in file names
+- Security vulnerabilities
+
+## Controller Implementation
+
+### Creating Products with Images
+
+From `backend/src/controllers/product.controller.ts:11-23`:
+
+```typescript
+import { UploadedFile } from "express-fileupload";
+import { ProductService } from "../services/product.services.js";
+
+export class ProductController {
+  constructor(private productService = new ProductService()) {}
+
+  create = async (req: Request, res: Response) => {
+    const file = req.files?.image as UploadedFile | undefined;
+
+    if (!file) {
+      return res.status(400).json({ 
+        error: "La imagen del producto es obligatoria (campo 'image')" 
+      });
+    }
+
+    const dto = plainToInstance(CreateProductDto, req.body, { 
+      enableImplicitConversion: true 
+    });
+    await validateOrReject(dto);
+
+    const product = await this.productService.createProduct(dto, file);
+    res.status(201).json(product);
+  };
+}
+```
+
+### Updating Products with Images
+
+From `backend/src/controllers/product.controller.ts:25-36`:
+
+```typescript
+update = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const data = { ...req.body };
+
+  const file = req.files?.image;
+  if (file) {
+    data.imageUrl = file;
+  }
+  
+  const product = await this.productService.updateProduct(Number(id), data);
+  res.json(product);
+};
+```
+
+## Service Layer
+
+### Create Product
+
+From `backend/src/services/product.services.ts:20-28`:
+
+```typescript
+import { uploadImage, deleteImage, extractPublicId } from "../utils/cloudinary.js";
+import type { UploadedFile } from "express-fileupload";
+
+export class ProductService {
+  constructor(private productRepository = new ProductRepository()) {}
+
+  async createProduct(dto: CreateProductDto, image: UploadedFile) {
+    const imageUrl = await uploadImage(image);
+
+    return this.productRepository.create({
+      ...dto,
+      imageUrl,
+    });
+  }
+}
+```
+
+### Update Product
+
+From `backend/src/services/product.services.ts:31-69`:
+
+```typescript
+async updateProduct(id: number, data: UpdateProductData) {
+  const existing = await this.productRepository.findById(id);
+  if (!existing) throw new NotFoundError("Producto no encontrado");
+
+  // If there's a new image as UploadedFile, process it
+  if (data.imageUrl && typeof data.imageUrl !== "string") {
+    const file = data.imageUrl as UploadedFile;
+
+    // Delete old image from Cloudinary
+    if (existing.imageUrl) {
+      try {
+        const oldPublicId = extractPublicId(existing.imageUrl);
+        if (oldPublicId) {
+          await deleteImage(oldPublicId);
+        }
+      } catch (err) {
+        console.warn("Error eliminando imagen anterior de Cloudinary:", err);
+      }
+    }
+
+    data.imageUrl = await uploadImage(file);
+  }
+
+  // Build clean object for repository
+  const { imageUrl, stock, categoryId, ...rest } = data;
+  const updateData: Record<string, unknown> = { ...rest };
+
+  if (typeof imageUrl === "string") {
+    updateData.imageUrl = imageUrl;
+  }
+  if (stock !== undefined) {
+    updateData.stock = Number(stock);
+  }
+  if (categoryId !== undefined) {
+    updateData.categoryId = Number(categoryId);
+  }
+
+  return this.productRepository.update(id, updateData);
+}
+```
+
+### Delete Product
+
+From `backend/src/services/product.services.ts:71-88`:
+
+```typescript
+async deleteProduct(id: number) {
+  const product = await this.productRepository.findById(id);
+  if (!product) throw new NotFoundError("Producto no encontrado");
+
+  // Delete image from Cloudinary
+  if (product.imageUrl) {
+    try {
+      const publicId = extractPublicId(product.imageUrl);
+      if (publicId) {
+        await deleteImage(publicId);
+      }
+    } catch (err) {
+      console.warn("Error eliminando imagen de Cloudinary:", err);
+    }
+  }
+
+  return this.productRepository.delete(id);
+}
+```
+
+## Cloudinary Utilities
+
+### Delete Image
+
+From `backend/src/utils/cloudinary.ts:75-77`:
+
+```typescript
+export const deleteImage = async (publicId: string): Promise<void> => {
+  await cloudinary.uploader.destroy(publicId);
+};
+```
+
+### Extract Public ID
+
+From `backend/src/utils/cloudinary.ts:79-83`:
+
+```typescript
+export const extractPublicId = (cloudinaryUrl: string): string | null => {
+  // URL format: https://res.cloudinary.com/<cloud>/image/upload/v<version>/<public_id>.<ext>
+  const match = cloudinaryUrl.match(/\/upload\/v\d+\/(.+)\.[^.]+$/);
+  return match?.[1] ?? null;
+};
+```
+
+This extracts the public ID from a Cloudinary URL for deletion:
+
+```
+Input:  https://res.cloudinary.com/demo/image/upload/v1234567890/ECOMMERCE/PRODUCTS/12345_product.jpg
+Output: ECOMMERCE/PRODUCTS/12345_product
+```
+
+## API Usage
+
+### Create Product with Image
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:3000/products \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "name=Premium Headphones" \
+  -F "description=High-quality wireless headphones" \
+  -F "price=199.99" \
+  -F "stock=50" \
+  -F "categoryId=1" \
+  -F "image=@/path/to/image.jpg"
+```
+
+```javascript JavaScript
+const formData = new FormData();
+formData.append('name', 'Premium Headphones');
+formData.append('description', 'High-quality wireless headphones');
+formData.append('price', '199.99');
+formData.append('stock', '50');
+formData.append('categoryId', '1');
+formData.append('image', fileInput.files[0]);
+
+const response = await fetch('http://localhost:3000/products', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  },
+  body: formData
+});
+
+const product = await response.json();
+console.log(product.imageUrl); // Cloudinary URL
+```
+
+```python Python
+import requests
+
+files = {'image': open('product.jpg', 'rb')}
+data = {
+    'name': 'Premium Headphones',
+    'description': 'High-quality wireless headphones',
+    'price': '199.99',
+    'stock': '50',
+    'categoryId': '1'
+}
+headers = {'Authorization': f'Bearer {token}'}
+
+response = requests.post(
+    'http://localhost:3000/products',
+    files=files,
+    data=data,
+    headers=headers
+)
+
+product = response.json()
+print(product['imageUrl'])  # Cloudinary URL
+```
+</CodeGroup>
+
+### Update Product Image
+
+<CodeGroup>
+```bash cURL
+curl -X PUT http://localhost:3000/products/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "name=Updated Product Name" \
+  -F "image=@/path/to/new-image.jpg"
+```
+
+```javascript JavaScript
+const formData = new FormData();
+formData.append('name', 'Updated Product Name');
+formData.append('image', newFileInput.files[0]);
+
+const response = await fetch('http://localhost:3000/products/1', {
+  method: 'PUT',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  },
+  body: formData
+});
+```
+</CodeGroup>
+
+<Note>
+When updating a product with a new image, the old image is automatically deleted from Cloudinary.
+</Note>
+
+## Response Format
+
+Successful upload returns product with Cloudinary URL:
+
+```json
+{
+  "id": 1,
+  "name": "Premium Headphones",
+  "description": "High-quality wireless headphones",
+  "price": "199.99",
+  "stock": 50,
+  "imageUrl": "https://res.cloudinary.com/demo/image/upload/v1234567890/ECOMMERCE/PRODUCTS/1234567890_product.jpg",
+  "categoryId": 1,
+  "createdAt": "2024-01-15T10:30:00.000Z",
+  "updatedAt": "2024-01-15T10:30:00.000Z"
+}
+```
+
+## Storage Location
+
+Images are uploaded to:
+
+```
+Cloudinary folder: /ECOMMERCE/PRODUCTS
+Public ID format: {timestamp}_{sanitized_filename}
+```
+
+Example:
+```
+/ECOMMERCE/PRODUCTS/1705318200000_premium_headphones
+```
+
+## Error Handling
+
+### Missing Image
+
+**Request**: Create product without image
+
+**Response**: `400 Bad Request`
+
+```json
+{
+  "error": "La imagen del producto es obligatoria (campo 'image')"
+}
+```
+
+### Invalid File Type
+
+**Request**: Upload `.pdf` file
+
+**Response**: `500 Internal Server Error`
+
+```json
+{
+  "error": "Invalid file type: application/pdf. Allowed types: image/jpeg, image/jpg, image/png, image/webp, image/gif"
+}
+```
+
+### File Too Large
+
+**Request**: Upload 10MB image
+
+**Response**: `500 Internal Server Error`
+
+```json
+{
+  "error": "El archivo es demasiado grande. Tamaño máximo: 5MB"
+}
+```
+
+### Cloudinary Error
+
+**Cause**: Invalid credentials or Cloudinary service down
+
+**Response**: `500 Internal Server Error`
+
+```json
+{
+  "error": "Upload to Cloudinary failed"
+}
+```
+
+## Best Practices
+
+### Client-Side Validation
+
+Validate before upload to improve UX:
+
+```javascript
+function validateImage(file) {
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+  const maxSize = 5 * 1024 * 1024; // 5MB
+
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error('Invalid file type. Please upload a JPEG, PNG, WebP, or GIF image.');
+  }
+
+  if (file.size > maxSize) {
+    throw new Error('File too large. Maximum size is 5MB.');
+  }
+
+  return true;
+}
+```
+
+### Image Optimization
+
+Cloudinary provides automatic optimization. Use transformation URLs:
+
+```javascript
+// Original URL
+const originalUrl = product.imageUrl;
+
+// Optimized thumbnail (200x200)
+const thumbnailUrl = originalUrl.replace(
+  '/upload/',
+  '/upload/w_200,h_200,c_fill/'
+);
+
+// Responsive with quality adjustment
+const responsiveUrl = originalUrl.replace(
+  '/upload/',
+  '/upload/w_auto,q_auto,f_auto/'
+);
+```
+
+### Progress Tracking
+
+For large files, show upload progress:
+
+```javascript
+const xhr = new XMLHttpRequest();
+
+xhr.upload.addEventListener('progress', (e) => {
+  if (e.lengthComputable) {
+    const percentComplete = (e.loaded / e.total) * 100;
+    console.log(`Upload: ${percentComplete.toFixed(2)}%`);
+  }
+});
+
+xhr.addEventListener('load', () => {
+  const product = JSON.parse(xhr.responseText);
+  console.log('Upload complete:', product);
+});
+
+xhr.open('POST', 'http://localhost:3000/products');
+xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+xhr.send(formData);
+```
+
+## Security Considerations
+
+<Warning>
+Always validate files on the server side. Client-side validation can be bypassed.
+</Warning>
+
+### Implemented Security Measures
+
+1. **File type validation**: MIME type and extension checking
+2. **File size limits**: 5MB maximum enforced by Express and validation function
+3. **Filename sanitization**: Prevents path traversal attacks
+4. **Safe file names**: `express-fileupload` option enabled
+5. **Abort on limit**: Request terminated if file exceeds size limit
+
+### Additional Recommendations
+
+- Use HTTPS in production to encrypt file transfers
+- Implement rate limiting on upload endpoints
+- Scan uploaded files for malware (if dealing with user-generated content)
+- Use signed upload URLs for direct client-to-Cloudinary uploads
+- Set up Cloudinary upload presets with restrictions
+
+## Troubleshooting
+
+### Images not uploading
+
+**Check**:
+1. Cloudinary credentials in `.env`
+2. File size < 5MB
+3. File type is allowed
+4. Request includes `Content-Type: multipart/form-data`
+
+### Old images not deleted
+
+**Symptom**: Cloudinary storage keeps growing
+
+**Solution**: The `extractPublicId` function may fail on malformed URLs. Check the URL format:
+
+```typescript
+// Expected format:
+// https://res.cloudinary.com/cloud/image/upload/v1234/ECOMMERCE/PRODUCTS/123_name.jpg
+
+const publicId = extractPublicId(imageUrl);
+console.log('Extracted:', publicId);
+// Should output: ECOMMERCE/PRODUCTS/123_name
+```
+
+### "Cannot read property 'image' of undefined"
+
+**Symptom**: `req.files` is undefined
+
+**Solution**: Ensure `express-fileupload` middleware is registered in `app.ts` before routes.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="gear" href="/guides/environment-setup">
+    Configure Cloudinary credentials
+  </Card>
+  
+  <Card title="Products API" icon="box" href="/api/products/create">
+    Complete product creation API reference
+  </Card>
+</CardGroup>

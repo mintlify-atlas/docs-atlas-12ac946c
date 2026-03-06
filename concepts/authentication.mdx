@@ -1,0 +1,469 @@
+---
+title: "Authentication"
+description: "JWT-based authentication implementation with secure password hashing and token management"
+---
+
+## Overview
+
+The E-commerce API uses **JSON Web Tokens (JWT)** for stateless authentication. Users register with an email and password, which is securely hashed using bcrypt. Upon login, the server issues a JWT that must be included in subsequent requests.
+
+## Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant AuthService
+    participant UserRepository
+    participant Database
+
+    Client->>API: POST /auth/register
+    API->>AuthService: register(data)
+    AuthService->>UserRepository: findByEmail()
+    UserRepository->>Database: Query user
+    Database-->>UserRepository: User not found
+    AuthService->>AuthService: bcrypt.hash(password)
+    AuthService->>UserRepository: createUser()
+    UserRepository->>Database: Insert user
+    Database-->>UserRepository: User created
+    UserRepository-->>AuthService: User data
+    AuthService-->>API: User (without password)
+    API-->>Client: 201 Created
+
+    Client->>API: POST /auth/login
+    API->>AuthService: login(credentials)
+    AuthService->>UserRepository: findByEmail()
+    UserRepository->>Database: Query user
+    Database-->>UserRepository: User found
+    AuthService->>AuthService: bcrypt.compare()
+    AuthService->>AuthService: generateToken()
+    AuthService-->>API: { user, token }
+    API-->>Client: 200 OK + JWT
+
+    Client->>API: GET /cart (with JWT)
+    API->>authMiddleware: Verify token
+    authMiddleware->>authMiddleware: verifyToken()
+    authMiddleware->>API: Attach user to req.user
+    API->>CartController: getCart()
+    CartController-->>API: Cart data
+    API-->>Client: 200 OK + Cart
+```
+
+## Registration
+
+### AuthService.register()
+
+Handles new user registration with password hashing:
+
+```typescript
+async register(data: CreateUserDto) {
+  const existing = await this.userRepo.findByEmail(data.email);
+  if (existing) throw new ConflictError("El email ya está en uso");
+
+  const hashed = await bcrypt.hash(data.password, 10);
+  const user = await this.userRepo.createUser({
+    name: data.name,
+    email: data.email,
+    passwordHash: hashed,
+    role: "customer"
+  });
+
+  return user;
+}
+```
+
+**Source:** `backend/src/services/auth.services.ts:11`
+
+**Process:**
+1. Check if email already exists (prevents duplicate accounts)
+2. Hash password with bcrypt using 10 salt rounds
+3. Create user with default role of `customer`
+4. Return user object (password hash excluded from responses)
+
+<Info>
+  New users are automatically assigned the `customer` role. Admin accounts must be created through the `createUserWithRole()` method.
+</Info>
+
+### API Endpoint
+
+```http
+POST /auth/register
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "email": "john@example.com",
+  "role": "customer",
+  "createdAt": "2026-03-06T10:30:00Z",
+  "updatedAt": "2026-03-06T10:30:00Z"
+}
+```
+
+<Warning>
+  The `passwordHash` field is never returned in API responses to prevent accidental exposure.
+</Warning>
+
+## Login
+
+### AuthService.login()
+
+Authenticates users and generates JWT tokens:
+
+```typescript
+async login(data: LoginUserDto) {
+  const user = await this.userRepo.findByEmail(data.email);
+
+  // Validate credentials without revealing if user exists
+  if (!user) {
+    throw new UnauthorizedError("Email o contraseña inválidos");
+  }
+
+  const valid = await bcrypt.compare(data.password, user.passwordHash);
+  if (!valid) {
+    throw new UnauthorizedError("Email o contraseña inválidos");
+  }
+
+  // Generate token with necessary user information
+  const token = generateToken({
+    id: user.id,
+    email: user.email,
+    role: user.role
+  });
+
+  // Return user without passwordHash
+  const { passwordHash, ...userWithoutPassword } = user;
+  return { user: userWithoutPassword, token };
+}
+```
+
+**Source:** `backend/src/services/auth.services.ts:27`
+
+**Security Features:**
+- Generic error messages prevent user enumeration attacks
+- Password comparison uses bcrypt's timing-safe comparison
+- JWT payload includes only necessary claims (id, email, role)
+- Password hash is excluded from the response
+
+### API Endpoint
+
+```http
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Response:**
+```json
+{
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "customer",
+    "createdAt": "2026-03-06T10:30:00Z",
+    "updatedAt": "2026-03-06T10:30:00Z"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+## JWT Token Structure
+
+### Token Generation
+
+```typescript
+export interface JwtUserPayload extends JwtPayload {
+  id: number;
+  email: string;
+  role: Role;
+}
+
+export const generateToken = (payload: JwtUserPayload) => {
+  const options: jwt.SignOptions = {};
+  options.expiresIn = config.jwtExpiry; // Default: "1h"
+  return jwt.sign(payload, config.jwtSecret, options);
+};
+```
+
+**Source:** `backend/src/utils/jwt.ts:15`
+
+**JWT Payload:**
+```json
+{
+  "id": 1,
+  "email": "john@example.com",
+  "role": "customer",
+  "iat": 1709719800,
+  "exp": 1709723400
+}
+```
+
+**Claims:**
+- `id` - User's database ID
+- `email` - User's email address
+- `role` - User's role (customer or admin)
+- `iat` - Issued at timestamp (added by JWT library)
+- `exp` - Expiration timestamp (added by JWT library)
+
+<Note>
+  Token expiration is configurable via the `JWT_EXPIRY` environment variable (default: 1 hour).
+</Note>
+
+### Token Verification
+
+```typescript
+export const verifyToken = (token: string): JwtUserPayload => {
+  const decoded = jwt.verify(token, config.jwtSecret);
+
+  if (typeof decoded === "string") {
+    throw new Error("Invalid token payload");
+  }
+
+  if (!isJwtUserPayload(decoded)) {
+    throw new Error("Token payload does not match expected structure");
+  }
+
+  return decoded;
+};
+```
+
+**Source:** `backend/src/utils/jwt.ts:31`
+
+**Validation:**
+1. Verify signature using `JWT_SECRET`
+2. Check expiration timestamp
+3. Validate payload structure using type guard
+4. Ensure required fields (id, email, role) are present
+
+## Authentication Middleware
+
+The `authMiddleware` protects routes by verifying JWT tokens:
+
+```typescript
+export function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const payload = verifyToken(token); // { id, email, role }
+    req.user = payload; // Attach to request
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+}
+```
+
+**Source:** `backend/src/middleware/auth.middleware.ts:7`
+
+### Usage Example
+
+Protecting a route:
+
+```typescript
+import { authMiddleware } from "../middleware/auth.middleware.js";
+
+// All routes below require authentication
+router.use(authMiddleware);
+
+router.get("/", controller.getCart);
+router.post("/add", controller.addToCart);
+router.delete("/clear", controller.clearCart);
+```
+
+**Source:** `backend/src/routes/cart.routes.ts:11`
+
+### Request Headers
+
+Clients must include the JWT in the `Authorization` header:
+
+```http
+GET /cart HTTP/1.1
+Host: api.example.com
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+```
+
+<Warning>
+  The token must be prefixed with `Bearer ` (note the space). Requests without this prefix will be rejected.
+</Warning>
+
+## Password Security
+
+### Bcrypt Hashing
+
+Passwords are hashed using bcrypt with a cost factor of 10:
+
+```typescript
+const hashed = await bcrypt.hash(data.password, 10);
+```
+
+**Benefits:**
+- **Salting:** Each password gets a unique salt
+- **Slow hashing:** Computationally expensive to brute force
+- **Adaptive:** Cost factor can be increased as hardware improves
+
+### Password Update
+
+When updating a user's password:
+
+```typescript
+async updateUser(userId: number, data: Partial<CreateUserDto>) {
+  const updateData: { name?: string; email?: string; passwordHash?: string } = {};
+  if (data.name) updateData.name = data.name;
+  if (data.email) updateData.email = data.email;
+  if (data.password) {
+    updateData.passwordHash = await bcrypt.hash(data.password, 10);
+  }
+
+  const user = await this.userRepo.updateUser(userId, updateData);
+  if (!user) throw new NotFoundError("Usuario no encontrado");
+  return user;
+}
+```
+
+**Source:** `backend/src/services/auth.services.ts:74`
+
+<Info>
+  Password updates rehash the new password before storage, never storing plaintext passwords.
+</Info>
+
+## Environment Configuration
+
+Authentication requires the following environment variables:
+
+```bash
+# JWT secret key (use a strong, random string)
+JWT_SECRET=your-super-secret-key-change-this-in-production
+
+# Token expiration time (optional, default: 1h)
+JWT_EXPIRY=1h
+
+# Database connection string
+DATABASE_URL=mysql://user:password@localhost:3306/ecommerce
+```
+
+<Warning>
+  The `JWT_SECRET` is required. The server will fail to start if it's not set. Use a cryptographically secure random string in production.
+</Warning>
+
+### Generating a Secure Secret
+
+```bash
+# Generate a 256-bit random secret
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+## Error Handling
+
+### Authentication Errors
+
+| Status Code | Error | Description |
+|------------|-------|-------------|
+| 401 | Unauthorized | No token provided or token is invalid/expired |
+| 409 | ConflictError | Email already exists during registration |
+| 401 | UnauthorizedError | Invalid email or password during login |
+| 404 | NotFoundError | User not found during update/delete |
+
+### Example Error Response
+
+```json
+{
+  "error": "Invalid token"
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Token Storage (Client-Side)">
+    - Store tokens in memory or httpOnly cookies (not localStorage)
+    - Never expose tokens in URLs or logs
+    - Implement token refresh for long-lived sessions
+  </Accordion>
+
+  <Accordion title="Password Requirements">
+    - Enforce minimum password length (8+ characters)
+    - Validate password strength on the client
+    - Consider implementing password complexity rules
+  </Accordion>
+
+  <Accordion title="Rate Limiting">
+    - Implement rate limiting on login endpoints
+    - Use CAPTCHA for repeated failed login attempts
+    - Consider account lockout after multiple failures
+  </Accordion>
+
+  <Accordion title="Token Rotation">
+    - Implement token refresh mechanism
+    - Use short-lived access tokens (1 hour)
+    - Store refresh tokens securely (httpOnly cookies)
+  </Accordion>
+</AccordionGroup>
+
+## Testing Authentication
+
+### Register a New User
+
+```bash
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test User",
+    "email": "test@example.com",
+    "password": "securePass123"
+  }'
+```
+
+### Login and Get Token
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "securePass123"
+  }'
+```
+
+### Use Token in Protected Route
+
+```bash
+curl -X GET http://localhost:3000/cart \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authorization" icon="shield" href="/concepts/authorization">
+    Learn about role-based access control
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/auth/register">
+    View complete authentication endpoints
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Understand the system architecture
+  </Card>
+  <Card title="Database Schema" icon="database" href="/concepts/database-schema">
+    Explore the User model
+  </Card>
+</CardGroup>

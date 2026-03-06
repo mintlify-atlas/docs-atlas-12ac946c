@@ -1,0 +1,188 @@
+---
+title: 'Environment Setup'
+description: 'Configure environment variables and application settings for the E-commerce API'
+icon: 'gear'
+---
+
+## Overview
+
+The E-commerce API requires several environment variables to function properly. This guide covers all required and optional configuration settings.
+
+## Required Environment Variables
+
+### Database Configuration
+
+The API uses MySQL as its database. Configure the connection using the `DATABASE_URL` variable:
+
+```bash
+DATABASE_URL="mysql://user:password@localhost:3306/ecommerce_db"
+```
+
+**Format**: `mysql://[USER]:[PASSWORD]@[HOST]:[PORT]/[DATABASE]`
+
+<Note>
+The `DATABASE_URL` is validated at startup. The application will throw an error if this variable is missing.
+</Note>
+
+### JWT Authentication
+
+Configure JSON Web Token settings for user authentication:
+
+```bash
+JWT_SECRET="your-super-secret-key-min-32-chars"
+JWT_EXPIRY="1h"
+```
+
+**JWT_SECRET** (required)
+- Used to sign and verify JWT tokens
+- Should be a strong, random string (minimum 32 characters recommended)
+- Never commit this value to version control
+
+**JWT_EXPIRY** (optional)
+- Token expiration time
+- Default: `"1h"` (1 hour)
+- Accepts values like: `"15m"`, `"1h"`, `"7d"`
+
+### Cloudinary Configuration
+
+The API uses Cloudinary for image storage. All three variables are required:
+
+```bash
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+```
+
+<Warning>
+The application validates Cloudinary credentials at startup. Missing any of these variables will prevent the application from starting.
+</Warning>
+
+Get your credentials from the [Cloudinary Dashboard](https://cloudinary.com/console):
+
+<Steps>
+  <Step title="Sign up for Cloudinary">
+    Create a free account at [cloudinary.com](https://cloudinary.com)
+  </Step>
+  
+  <Step title="Access your dashboard">
+    Navigate to the dashboard to view your credentials
+  </Step>
+  
+  <Step title="Copy credentials">
+    Copy the Cloud Name, API Key, and API Secret to your `.env` file
+  </Step>
+</Steps>
+
+## Optional Environment Variables
+
+### Node Environment
+
+```bash
+NODE_ENV="development"
+```
+
+**Values**:
+- `"development"` (default): Enables detailed error messages
+- `"production"`: Optimized for production with minimal error details
+
+### Frontend URL
+
+```bash
+FRONTEND_URL="http://localhost:3001"
+```
+
+Used for CORS configuration. Default: `"http://localhost:3001"`
+
+## Configuration File Structure
+
+The configuration is loaded and validated in `backend/src/config/index.ts:5-19`:
+
+```typescript
+import dotenv from "dotenv";
+dotenv.config();
+
+function getRequiredEnv(key: string): string {
+    const value = process.env[key];
+    if (!value) {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return value;
+}
+
+export const config = {
+    jwtSecret: getRequiredEnv("JWT_SECRET"),
+    jwtExpiry: process.env.JWT_EXPIRY || "1h",
+    dbUrl: getRequiredEnv("DATABASE_URL"),
+    nodeEnv: process.env.NODE_ENV || "development",
+    frontendUrl: process.env.FRONTEND_URL || "http://localhost:3001"
+};
+```
+
+## Complete .env Template
+
+Create a `.env` file in the `backend/` directory:
+
+```bash
+# Database
+DATABASE_URL="mysql://user:password@localhost:3306/ecommerce_db"
+
+# JWT Authentication
+JWT_SECRET="your-super-secret-key-min-32-chars"
+JWT_EXPIRY="1h"
+
+# Cloudinary Image Storage
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+
+# Application
+NODE_ENV="development"
+FRONTEND_URL="http://localhost:3001"
+```
+
+## Docker Compose Variables
+
+When using Docker Compose, additional MySQL variables are required in the root `.env`:
+
+```bash
+# MySQL Container Configuration
+MYSQL_ROOT_PASSWORD="rootpassword"
+MYSQL_DATABASE="ecommerce_db"
+MYSQL_USER="ecommerce_user"
+MYSQL_PASSWORD="ecommerce_password"
+```
+
+<Info>
+These variables are only used by the `docker-compose.yml` file to configure the MySQL container. The backend uses `DATABASE_URL` from `backend/.env`.
+</Info>
+
+## Validation on Startup
+
+The application performs validation when starting:
+
+1. **Config validation** (`config/index.ts`) - Checks JWT and database variables
+2. **Cloudinary validation** (`config/cloudinary.ts:5-9`) - Verifies all three Cloudinary credentials
+
+```typescript
+const requiredVars = ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"] as const;
+
+for (const varName of requiredVars) {
+  if (!process.env[varName]) {
+    throw new Error(`Variable de entorno ${varName} no definida`);
+  }
+}
+```
+
+If any required variable is missing, the application will exit with a clear error message.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Deploy the application using Docker Compose
+  </Card>
+  
+  <Card title="Database Migrations" icon="database" href="/guides/database-migrations">
+    Set up and manage database schema with Prisma
+  </Card>
+</CardGroup>
