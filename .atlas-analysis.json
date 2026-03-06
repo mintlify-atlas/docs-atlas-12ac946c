@@ -1,0 +1,143 @@
+{
+  "projectType": "api-service",
+  "projectName": "E-commerce API",
+  "projectDescription": "A RESTful e-commerce API built with Express, Prisma, and TypeScript featuring authentication, product management, shopping cart, and order processing.",
+  "theme": "sequoia",
+  "primaryColor": "#10B981",
+  "lightColor": "#34D399",
+  "darkColor": "#059669",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/database-schema",
+              "concepts/authentication",
+              "concepts/authorization"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/environment-setup",
+              "guides/docker-deployment",
+              "guides/database-migrations",
+              "guides/image-uploads"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/rate-limiting",
+              "security/best-practices"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/errors"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/profile",
+              "api/auth/create-user"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "api/products/list",
+              "api/products/get",
+              "api/products/create",
+              "api/products/update",
+              "api/products/delete"
+            ]
+          },
+          {
+            "group": "Categories",
+            "pages": [
+              "api/categories/list",
+              "api/categories/create",
+              "api/categories/update",
+              "api/categories/delete"
+            ]
+          },
+          {
+            "group": "Cart",
+            "pages": [
+              "api/cart/get",
+              "api/cart/add",
+              "api/cart/update",
+              "api/cart/remove",
+              "api/cart/clear"
+            ]
+          },
+          {
+            "group": "Orders",
+            "pages": [
+              "api/orders/create",
+              "api/orders/list",
+              "api/orders/get"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "JWT-based authentication with role-based access control",
+    "Product catalog management with categories and image uploads",
+    "Shopping cart functionality with persistent storage",
+    "Order creation and management system",
+    "Rate limiting and security middleware",
+    "Prisma ORM with MySQL database",
+    "Docker containerization with docker-compose"
+  ],
+  "publicApiSurface": [
+    "POST /auth/register - Register a new customer account",
+    "POST /auth/login - Authenticate and receive JWT token",
+    "PUT /auth/profile - Update user profile (authenticated)",
+    "DELETE /auth/delete - Delete user account (authenticated)",
+    "POST /auth/create-user - Create user with specific role (admin only)",
+    "GET /products - List all products (public)",
+    "GET /products/:id - Get product by ID (public)",
+    "POST /products - Create product with image (admin only)",
+    "PUT /products/:id - Update product (admin only)",
+    "DELETE /products/:id - Delete product (admin only)",
+    "GET /categories - List all categories (public)",
+    "POST /categories - Create category (admin only)",
+    "PUT /categories/:id - Update category (admin only)",
+    "DELETE /categories/:id - Delete category (admin only)",
+    "GET /cart - Get user's cart (authenticated)",
+    "POST /cart/add - Add item to cart (authenticated)",
+    "PUT /cart/item/:id - Update cart item quantity (authenticated)",
+    "DELETE /cart/item/:id - Remove item from cart (authenticated)",
+    "DELETE /cart/clear - Clear entire cart (authenticated)",
+    "POST /orders - Create order from cart (authenticated)",
+    "GET /orders - List user's orders (authenticated)",
+    "GET /orders/:id - Get order details (authenticated)"
+  ]
+}
